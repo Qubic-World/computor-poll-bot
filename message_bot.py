@@ -1,3 +1,4 @@
+from ast import Delete
 import discord
 import os
 
@@ -17,8 +18,18 @@ class MyClient(discord.Client):
 
         print("Message from " + str(message.author) + " contains " + str(message.content))
 
-        if message.content.startswith("transfer"):
-            await message.channel.send("okay!")       
+        if(message.content == "$help"):
+            await message.channel.send("$transferTo ID = transfer to ID\n...")
+
+        if message.content.startswith("$transferTo"):
+            id = message.content.split(' ')[1]
+            await message.channel.send("transfer success to " + id)       
+
+        if message.content.startswith("$hello bot"):
+            await message.channel.send('hello boss') 
+            #private message
+            await message.author.send("hello boss!")    # Delete after=120 file send 
+
    
 # Read from .env
 load_dotenv()
