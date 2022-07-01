@@ -12,7 +12,13 @@ class MyClient(discord.Client):
 
     #When the message is posted
     async def on_message(self, message):
+        if message.author == client.user:
+            return
+
         print("Message from " + str(message.author) + " contains " + str(message.content))
+
+        if message.content.startswith("transfer"):
+            await message.channel.send("okay!")       
    
 # Read from .env
 load_dotenv()
