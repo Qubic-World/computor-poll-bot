@@ -105,6 +105,3 @@ def pretty_signatyre(signature: bytes) -> str:
         signature_str += chr(ord('a') + (s & 0x0F))
 
     return signature_str
-
-	# signature_str += static_cast<uint8_t>('a' + (symbol >> 4));
-	# 		signature_str += static_cast<uint8_t>('a' + (symbol & 0x0F));
