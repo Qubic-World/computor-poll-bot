@@ -1,7 +1,5 @@
 import ctypes
 from ctypes import CDLL, create_string_buffer
-from hmac import digest
-import os
 from sys import platform
 
 
@@ -58,3 +56,55 @@ def str_signature_to_bytes(signature: str) -> bytes:
         signature_bytes_list.append(high | low)
 
     return bytes(signature_bytes_list)
+
+
+def get_subseed(seed: str):
+    get_subseed_C = qubic_verify_dll.get_subseed
+    get_subseed_C.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+    get_subseed_C.restype = ctypes.c_bool
+
+    subseed_buffer = create_string_buffer(32)
+    result = get_subseed_C(ctypes.c_char_p(
+        seed.encode('ascii')), subseed_buffer)
+    return (result, bytes(subseed_buffer))
+
+
+def get_private_key(subseed: bytes) -> bytes:
+    get_private_key_C = qubic_verify_dll.get_private_key
+    get_private_key_C.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+
+    private_key_buffer = create_string_buffer(32)
+    get_private_key_C(ctypes.c_char_p(subseed), private_key_buffer)
+    return bytes(private_key_buffer)
+
+
+def get_public_key(private_key: bytes) -> bytes:
+    get_public_key_C = qubic_verify_dll.get_public_key
+    get_public_key_C.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+
+    public_key_buffer = create_string_buffer(32)
+    get_public_key_C(ctypes.c_char_p(private_key), public_key_buffer)
+    return bytes(public_key_buffer)
+
+
+def sign(subseed: bytes, public_key: bytes, digest: bytes) -> bytes:
+    sign_C = qubic_verify_dll.sign_signature
+    sign_C.argtypes = [ctypes.c_char_p, ctypes.c_char_p,
+                       ctypes.c_char_p, ctypes.c_char_p]
+
+    signature_buffer = create_string_buffer(64)
+    sign_C(ctypes.c_char_p(subseed), ctypes.c_char_p(
+        public_key), ctypes.c_char_p(digest), signature_buffer)
+    return bytes(signature_buffer)
+
+
+def pretty_signatyre(signature: bytes) -> str:
+    signature_str: str = ""
+    for s in signature:
+        signature_str += chr(ord('a') + (s >> 4))
+        signature_str += chr(ord('a') + (s & 0x0F))
+
+    return signature_str
+
+	# signature_str += static_cast<uint8_t>('a' + (symbol >> 4));
+	# 		signature_str += static_cast<uint8_t>('a' + (symbol & 0x0F));
