@@ -1,4 +1,5 @@
 import json
+import logging
 from algorithms.verify import *
 
 from verify.user import is_valid_user
@@ -44,3 +45,11 @@ def is_valid_message(message):
             return (False, "Message failed to be verified")
 
     return (True, "Good!")
+
+def get_username_id_from_message(message: str)->str:
+    try:
+        json_obj = json.loads(message)[0]
+        return json_obj["username_id"]
+    except Exception as e:
+        logging.exception(e)
+        return ""
