@@ -91,10 +91,10 @@ def get_identity(public_key: bytes):
     get_identity_C = qubic_verify_dll.get_identity
     get_identity_C.argtypes = [ctypes.c_char_p]
 
-    identity_buffer = (ctypes.c_uint16 * (70 + 1))()
+    identity_buffer = (ctypes.c_uint16 * (70))()
     get_identity_C(ctypes.c_char_p(public_key), identity_buffer)
 
-    return bytes(identity_buffer).decode('utf-8')
+    return ''.join([chr(s) for s in identity_buffer])
 
 
 def sign(subseed: bytes, public_key: bytes, digest: bytes) -> bytes:
