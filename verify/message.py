@@ -1,6 +1,7 @@
 import json
 from algorithms.verify import *
 
+from verify.user import is_valid_user
 
 def is_valid_message(message):
     try:
@@ -18,11 +19,15 @@ def is_valid_message(message):
             return (False, "No `identity` field")
 
         try:
-            username:str = json_message["username"]
-            if len(username) <= 0:
-                return (False, "The `username` field cannot be empty")
+            username_id:str = json_message["username_id"]
+            if len(username_id) <= 0:
+                return (False, "The `username_id` field cannot be empty")
+            
+            valid_user_result = is_valid_user(username_id)
+            if valid_user_result[0] == False:
+                return (False, valid_user_result[1])
         except:
-            return (False, "No `username` field")
+            return (False, "No `username_id` field")
 
         try:
             signature: str = json_message['signature']
@@ -34,7 +39,7 @@ def is_valid_message(message):
 
         # Verify
         public_key = get_public_key_from_id(identity)
-        digest = kangaroo_twelve(username.encode('ascii'))
+        digest = kangaroo_twelve(username_id.encode('ascii'))
         if verify(public_key,digest, str_signature_to_bytes(signature)) == False:
             return (False, "Message failed to be verified")
 
