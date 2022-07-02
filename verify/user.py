@@ -1,4 +1,5 @@
-from discord import User, Client
+from discord import Client, User
+
 
 def is_valid_user(username_id: str):
     if username_id.isdigit() == False:

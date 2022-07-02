@@ -1,8 +1,10 @@
 import json
 import logging
+
 from algorithms.verify import *
 
 from verify.user import is_valid_user
+
 
 def is_valid_message(message):
     try:
