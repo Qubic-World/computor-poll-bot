@@ -1,5 +1,5 @@
 import ctypes
-from ctypes import CDLL, create_string_buffer
+from ctypes import CDLL, create_string_buffer, create_unicode_buffer
 from sys import platform
 
 
@@ -85,6 +85,16 @@ def get_public_key(private_key: bytes) -> bytes:
     public_key_buffer = create_string_buffer(32)
     get_public_key_C(ctypes.c_char_p(private_key), public_key_buffer)
     return bytes(public_key_buffer)
+
+
+def get_identity(public_key: bytes):
+    get_identity_C = qubic_verify_dll.get_identity
+    get_identity_C.argtypes = [ctypes.c_char_p]
+
+    identity_buffer = (ctypes.c_uint16 * (70 + 1))()
+    get_identity_C(ctypes.c_char_p(public_key), identity_buffer)
+
+    return bytes(identity_buffer).decode('utf-8')
 
 
 def sign(subseed: bytes, public_key: bytes, digest: bytes) -> bytes:
