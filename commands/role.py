@@ -8,6 +8,7 @@ async def switch_role(guild: Guild, member: Member, add: bool = True):
         raise ValueError("you cannot assign a role to the bot")
 
     try:
+
         role = guild.get_role(int(getenv("ROLE_ID")))
         if add:
             await member.add_roles(role)

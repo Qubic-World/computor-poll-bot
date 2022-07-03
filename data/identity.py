@@ -1,3 +1,5 @@
+import asyncio
+import types
 import aiofiles
 import ast
 
@@ -8,6 +10,7 @@ class IdentityManager():
         self._file_name = "identity.data"
         self._observers_added = set()
         self._observers_removed = set()
+        self.background_task = set()
 
     def apply_identity(self, identity: set):
         old_identity = self._identity.difference(identity)
@@ -15,11 +18,18 @@ class IdentityManager():
 
         self._identity = identity
 
-        self.call_added_new(new_identity)
-        self.call_removed(old_identity)
+
+        if len(new_identity) > 0:
+            self.call_added_new(new_identity)
+        if len(old_identity) > 0:
+            self.call_removed(old_identity)
 
     def reset(self):
         self._identity.clear()
+
+    async def stop(self):
+        while len(self.background_task) > 0:
+            asyncio.sleep(0.1)
 
     """
     Files
@@ -29,7 +39,7 @@ class IdentityManager():
         async with aiofiles.open(self._file_name, "w") as file:
             await file.write(str(self._identity))
 
-    async def read_from_file(self):
+    async def load_from_file(self):
         try:
             async with aiofiles.open(self._file_name, "r") as file:
                 self._identity = set(ast.literal_eval(await file.read()))
@@ -47,9 +57,27 @@ class IdentityManager():
         self._observers_removed.add(function)
 
     def call_removed(self, removed_identity: set):
+        loop = asyncio.get_event_loop()
         for observer in self._observers_removed:
-            observer(removed_identity)
+            if asyncio.iscoroutinefunction(observer):
+                task = loop.create_task(observer(removed_identity))
+                self.background_task.add(task)
+                task.add_done_callback(self.background_task.discard)
+            else:
+                observer(removed_identity)
+        if not loop.is_running():
+            loop.close()
 
     def call_added_new(self, added_identity: set):
+        loop = asyncio.get_event_loop()
         for observer in self._observers_added:
-            observer(added_identity)
+            if asyncio.iscoroutinefunction(observer):
+                task =loop.create_task(observer(added_identity))
+                self.background_task.add(task)
+                task.add_done_callback(self.background_task.discard)
+            else:
+                observer(added_identity)
+
+        # TODO: Will it affect other coroutines?
+        if not loop.is_running():
+            loop.close()
