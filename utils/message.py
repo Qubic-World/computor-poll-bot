@@ -5,12 +5,13 @@ from algorithms.verify import *
 
 from verify.user import is_valid_user
 
-identity_field = "identity"
-userid_field = "username_id"
-signature_field = "signature"
+IDENTITY_FIELD = "identity"
+USERID_FIELD = "username_id"
+SIGNATURE_FIELD = "signature"
+IVALID_IDENTITY = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACDFMDM"
 
 def is_valid_identity(identity: str):
-    return identity.isalpha() and len(identity) == 70
+    return identity.isalpha() and len(identity) == 70 and identity != IVALID_IDENTITY
 
 
 def is_valid_message(message):
@@ -21,14 +22,14 @@ def is_valid_message(message):
 
     for json_message in json_message_array:
         try:
-            identity: str = json_message[identity_field]
+            identity: str = json_message[IDENTITY_FIELD]
             if not is_valid_identity(identity):
                 return (False, "The identity length must be 70 ")
         except:
             return (False, "No `identity` field")
 
         try:
-            username_id:str = json_message[userid_field]
+            username_id:str = json_message[USERID_FIELD]
             if len(username_id) <= 0:
                 return (False, "The `username_id` field cannot be empty")
             
@@ -39,7 +40,7 @@ def is_valid_message(message):
             return (False, "No `username_id` field")
 
         try:
-            signature: str = json_message[signature_field]
+            signature: str = json_message[SIGNATURE_FIELD]
             signature = "".join([s for s in signature if s.isalpha()])
             if len(signature) != 128:
                 return (False, "The signature length must be 128")
@@ -62,7 +63,7 @@ def get_identity_list(message: str)->list:
         return (False, "Unvalid json")
 
     for json_obj in json_array:
-        identity_list.append(json_obj[identity_field])
+        identity_list.append(json_obj[IDENTITY_FIELD])
 
     return identity_list
 
@@ -71,7 +72,7 @@ def get_identity_list(message: str)->list:
 def get_user_id_from_message(message: str)->str:
     try:
         json_obj = json.loads(message)[0]
-        return json_obj[userid_field]
+        return json_obj[USERID_FIELD]
     except Exception as e:
         logging.exception(e)
         return ""
