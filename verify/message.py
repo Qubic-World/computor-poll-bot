@@ -5,6 +5,10 @@ from algorithms.verify import *
 
 from verify.user import is_valid_user
 
+identity_field = "identity"
+userid_field = "username_id"
+signature_field = "signature"
+
 
 def is_valid_message(message):
     try:
@@ -14,7 +18,7 @@ def is_valid_message(message):
 
     for json_message in json_message_array:
         try:
-            identity: str = json_message["identity"]
+            identity: str = json_message[identity_field]
             identity = "".join([i for i in identity if i.isalpha()])
             if len(identity) != 70:
                 return (False, "The identity length must be 70 ")
@@ -22,7 +26,7 @@ def is_valid_message(message):
             return (False, "No `identity` field")
 
         try:
-            username_id:str = json_message["username_id"]
+            username_id:str = json_message[userid_field]
             if len(username_id) <= 0:
                 return (False, "The `username_id` field cannot be empty")
             
@@ -33,7 +37,7 @@ def is_valid_message(message):
             return (False, "No `username_id` field")
 
         try:
-            signature: str = json_message['signature']
+            signature: str = json_message[signature_field]
             signature = "".join([s for s in signature if s.isalpha()])
             if len(signature) != 128:
                 return (False, "The signature length must be 128")
@@ -48,10 +52,24 @@ def is_valid_message(message):
 
     return (True, "Good!")
 
-def get_username_id_from_message(message: str)->str:
+def get_identity_list(message: str)->list:
+    identity_list = []
+    try:
+        json_array = json.loads(message)
+    except Exception as e:
+        return (False, "Unvalid json")
+
+    for json_obj in json_array:
+        identity_list.append(json_obj[identity_field])
+
+    return identity_list
+
+
+
+def get_user_id_from_message(message: str)->str:
     try:
         json_obj = json.loads(message)[0]
-        return json_obj["username_id"]
+        return json_obj[userid_field]
     except Exception as e:
         logging.exception(e)
         return ""
