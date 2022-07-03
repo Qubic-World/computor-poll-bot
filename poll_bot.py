@@ -1,15 +1,21 @@
 import asyncio
 import os
 
+from discord import Intents
 from discord.ext import commands
 from dotenv import load_dotenv
 
 from commands.pool import PoolCommands
 from data.users import UserData
-from verify.message import get_identity_list, get_user_id_from_message, is_valid_message
+from verify.message import (get_identity_list, get_user_id_from_message,
+                            is_valid_message)
 from verify.user import is_existing_user
 
-poll_bot = commands.Bot(command_prefix="/")
+intents = Intents.default()
+intents.members = True
+intents.messages = True
+poll_bot = commands.Bot(command_prefix="/", intents=intents)
+
 pool_commands = PoolCommands()
 user_data = UserData()
 
@@ -54,7 +60,7 @@ def main():
     print(user_data._json_data)
 
     try:
-        # Running pool of commands 
+        # Running pool of commands
         pool_commands.start()
 
         # Running the bot
