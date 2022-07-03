@@ -1,6 +1,4 @@
-import ast
 import asyncio
-import logging
 import os
 
 from discord import Intents
@@ -8,10 +6,10 @@ from discord.ext import commands
 from dotenv import load_dotenv
 
 from commands.pool import PoolCommands
-from commands.role import switch_role
+from role import RoleManager
 from data.identity import IdentityManager
 from data.users import UserData
-from verify.message import (get_identity_list, get_user_id_from_message,
+from verify.message import (get_identity_list, get_user_id_from_message, is_valid_identity,
                             is_valid_message)
 from verify.user import is_existing_user
 
@@ -23,6 +21,7 @@ poll_bot = commands.Bot(command_prefix="/", intents=intents)
 pool_commands = PoolCommands()
 user_data = UserData()
 identity_manager = IdentityManager()
+role_manager = RoleManager(user_data, poll_bot)
 
 
 @poll_bot.command(name='register')
@@ -55,58 +54,12 @@ async def on_ready():
     print("On ready")
 
 
-def get_member_by_id(user_id: str):
-    for member in poll_bot.get_all_members():
-        if member.id == int(user_id):
-            return member
-
-    return None
-
-
-@identity_manager.observe_removed
-async def on_remove_role(identity: set):
-    print("Remove role")
-    for id in identity:
-        user_id = user_data.get_user_id(id)
-        print(user_id)
-        if user_id != None:
-            member = get_member_by_id(user_id)
-            if member != None:
-                channel = poll_bot.get_channel(int(os.getenv("CHANNEL_ID")))
-                if channel == None:
-                    return
-                print(channel.guild)
-                await switch_role(channel.guild, member, False)
-            else:
-                logging.warning("Member is equal None")
-        else:
-            logging.warning("UserID is equal None")
-
-
-@identity_manager.observe_added
-async def on_add_role(identity: set):
-    print("Add role")
-    for id in identity:
-        user_id = user_data.get_user_id(id)
-        print(user_id)
-        if user_id != None:
-            member = get_member_by_id(user_id)
-            if member != None:
-                channel = poll_bot.get_channel(int(os.getenv("CHANNEL_ID")))
-                if channel == None:
-                    return
-                print(channel.guild)
-                await switch_role(channel.guild, member, True)
-            else:
-                logging.warning("Member is equal None")
-        else:
-            logging.warning("UserID is equal None")
-
-
 @poll_bot.command()
 async def add_identity(ctx, *identity):
-    identity_manager.apply_identity(set(identity))
-    await identity_manager.save_to_file()
+    valid_id = [item for item in list(identity) if is_valid_identity(item)]
+    if len(valid_id) > 0:
+        identity_manager.apply_identity(set(valid_id))
+        await identity_manager.save_to_file()
 
 
 def main():
@@ -120,6 +73,9 @@ def main():
     loop.run_until_complete(asyncio.gather(
         user_data.load_from_file(), identity_manager.load_from_file()))
 
+    identity_manager.observe_added(role_manager.add_role)
+    identity_manager.observe_removed(role_manager.remove_role)
+    
     try:
         # Running pool of commands
         pool_commands.start()

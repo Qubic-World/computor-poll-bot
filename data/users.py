@@ -1,5 +1,4 @@
 import json
-from xml.dom.minidom import Identified
 
 import aiofiles
 
@@ -10,7 +9,6 @@ class UserData():
     def __init__(self) -> None:
         self._json_data = dict()
         self.reset()
-
         self._json_file_name = "userdata.json"
 
     def add_data(self, user_id: str, identity_list: list):
@@ -24,7 +22,6 @@ class UserData():
 
     def get_user_id(self, identity: str):
         for user_data in self._json_data[USER_DATA_FIELD]:
-            print()
             if identity in next(iter(user_data.values())):
                 return next(iter(user_data.keys()))
 
