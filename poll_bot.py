@@ -11,7 +11,7 @@ from data.identity import IdentityManager
 from data.users import UserData
 from utils.broadcastcomputors import broadcast_loop
 from utils.message import (get_identity_list, get_user_id_from_message, is_valid_identity,
-                            is_valid_message)
+                           is_valid_message)
 from verify.user import is_existing_user
 
 intents = Intents.default()
@@ -31,8 +31,6 @@ async def _register(ctx, *, json):
     await pool_commands.add_command(register, ctx, json)
 
 # Executing from pool
-
-
 async def register(ctx, json):
     result = is_valid_message(json)
     if result[0] == False:
@@ -55,14 +53,6 @@ async def on_ready():
     print("On ready")
 
 
-@poll_bot.command()
-async def add_identity(ctx, *identity):
-    valid_id = [item for item in list(identity) if is_valid_identity(item)]
-    if len(valid_id) > 0:
-        identity_manager.apply_identity(set(valid_id))
-        await identity_manager.save_to_file()
-
-
 def main():
     # Read from .env
     load_dotenv()
@@ -76,12 +66,13 @@ def main():
 
     identity_manager.observe_added(role_manager.add_role)
     identity_manager.observe_removed(role_manager.remove_role)
-    
+
     try:
         # Running pool of commands
         pool_commands.start()
 
-        broadcast_computors_task = loop.create_task(broadcast_loop(identity_manager))
+        broadcast_computors_task = loop.create_task(
+            broadcast_loop(identity_manager))
 
         # Running the bot
         task = loop.create_task(poll_bot.start(

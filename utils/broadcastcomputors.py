@@ -2,6 +2,7 @@ import asyncio
 from codecs import StreamReader, StreamWriter
 import json
 import logging
+from os import getenv
 from typing import Optional
 
 from data.identity import IdentityManager
@@ -60,11 +61,19 @@ class BroadcastComputors():
             # await self._writer.wait_closed()
 
 
+def get_ip() -> str:
+    return str(getenv("QUBIC_SERVICE_IP"))
+
+def get_port() ->int:
+    return int(getenv("BROADCAST_COMPUTORS_PORT"))
+
+
+
 async def broadcast_loop(identity_manager: IdentityManager):
     while True:
         try:
             broadcast = BroadcastComputors(
-                identity_manager, "192.168.100.103", 21848, 10)
+                identity_manager, get_ip(), get_port(), 10)
             await broadcast.start()
         except asyncio.TimeoutError as e:
             logging.warning("broadcast_loop: Timeout")
