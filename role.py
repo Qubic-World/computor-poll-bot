@@ -5,7 +5,7 @@ from discord import Client, Guild, Member
 from data.users import UserData
 from utils.botutils import (get_channel, get_channel_id, get_member_by_id,
                             get_role)
-from verify.message import is_valid_identity
+from utils.message import is_valid_identity
 
 
 class RoleManager():

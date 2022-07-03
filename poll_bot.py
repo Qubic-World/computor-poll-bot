@@ -9,7 +9,8 @@ from commands.pool import PoolCommands
 from role import RoleManager
 from data.identity import IdentityManager
 from data.users import UserData
-from verify.message import (get_identity_list, get_user_id_from_message, is_valid_identity,
+from utils.broadcastcomputors import broadcast_loop
+from utils.message import (get_identity_list, get_user_id_from_message, is_valid_identity,
                             is_valid_message)
 from verify.user import is_existing_user
 
@@ -80,6 +81,8 @@ def main():
         # Running pool of commands
         pool_commands.start()
 
+        broadcast_computors_task = loop.create_task(broadcast_loop(identity_manager))
+
         # Running the bot
         task = loop.create_task(poll_bot.start(
             token, bot=True, reconnect=True))
@@ -90,6 +93,11 @@ def main():
         loop.run_until_complete(pool_commands.stop())
         loop.run_until_complete(identity_manager.stop())
         loop.run_until_complete(poll_bot.close())
+        broadcast_computors_task.cancel()
+        try:
+            loop.run_until_complete(broadcast_computors_task)
+        except asyncio.CancelledError:
+            pass
     finally:
         loop.close()
 

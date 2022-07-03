@@ -1,4 +1,3 @@
-from ast import Delete
 import discord
 import os
 
