@@ -9,6 +9,9 @@ identity_field = "identity"
 userid_field = "username_id"
 signature_field = "signature"
 
+def is_valid_identity(identity: str):
+    return identity.isalpha() and len(identity) == 70
+
 
 def is_valid_message(message):
     try:
@@ -19,8 +22,7 @@ def is_valid_message(message):
     for json_message in json_message_array:
         try:
             identity: str = json_message[identity_field]
-            identity = "".join([i for i in identity if i.isalpha()])
-            if len(identity) != 70:
+            if not is_valid_identity(identity):
                 return (False, "The identity length must be 70 ")
         except:
             return (False, "No `identity` field")
