@@ -1,5 +1,5 @@
 
-from asyncio import Queue, Task, create_task
+from asyncio import Queue, Task
 import asyncio
 from inspect import iscoroutinefunction
 from typing import Optional
