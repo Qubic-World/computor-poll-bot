@@ -104,7 +104,7 @@ class MyClient(discord.Client):
                 /help_voting
                 /voting_result
                 /voting NUMBER PUBLIC_ID ''')
-            retunr
+            return
         
         # /voting 1 EPJCKMDJIHGMGGPGPFPBICILHPILGBHOFIKJPBMLIJIAADLEDCKFDKODGAEMPDGIPPLOEM
         if(message.content == "/help_voting"):
