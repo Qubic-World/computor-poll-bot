@@ -4,16 +4,16 @@ import logging
 from ctypes import sizeof
 from os import getenv
 from random import shuffle
-from turtle import Vec2D
 from typing import Optional
 
 from dotenv import load_dotenv
 
-from qubicdata import (EXCHANGE_PUBLIC_PEERS, ExchangePublicPeers, PeerState,
-                       RequestResponseHeader)
+from qubicdata import (BROADCAST_COMPUTORS, EXCHANGE_PUBLIC_PEERS, Computors,
+                       ExchangePublicPeers, PeerState, RequestResponseHeader)
 from qubicutils import (exchange_public_peers_to_list, get_header_from_bytes,
-                        get_protocol_version, get_raw_payload, is_valid_header,
-                        is_valid_ip)
+                        get_protocol_version, get_raw_payload,
+                        is_valid_broadcast_computors, is_valid_header,
+                        is_valid_ip, apply_computors_data)
 
 
 class QubicNetworkManager():
@@ -67,7 +67,7 @@ class QubicNetworkManager():
 
                 # If there are few known peers left, try reconnecting to forgotten ones
                 if len(self._know_ip) <= 1 and len(self._fogeted_ip) > 0:
-                    self._know_ip.add(self._fogeted_ip)
+                    self._know_ip.union(self._fogeted_ip)
 
                 if len(self._know_ip) > 0:
                     list_ip = list(self._know_ip)
@@ -130,7 +130,7 @@ class QubicNetworkManager():
 
 class Peer():
     def __init__(self, qubic_network: QubicNetworkManager) -> None:
-        self._qubic_manager = qubic_network
+        self.__qubic_manager = qubic_network
         self.__connect_task: Optional[asyncio.Task] = None
         self.__reader: Optional[asyncio.StreamReader] = None
         self.__writer: Optional[asyncio.StreamWriter] = None
@@ -171,14 +171,11 @@ class Peer():
         except Exception as e:
             self.__disconection(e)
             return
-        
+
         task = asyncio.create_task(self.__read_loop())
         task.add_done_callback(self.__background_tasks.remove)
         self.__background_tasks.append(task)
         await asyncio.gather(task)
-
-    async def print_hello(self):
-        print("Hello")
 
     async def handshake(self):
         """When connecting to a peer we exchange public peers. 
@@ -197,17 +194,16 @@ class Peer():
 
             await self.send_data(bytes(header) + bytes(exchange_public_peers))
 
-
     async def __disconection(self, what):
         logging.warning(what)
 
-        self._qubic_manager.foget_peer(self)
+        self.__qubic_manager.foget_peer(self)
         await self.stop()
 
     async def __read_data(self, size) -> bytes:
         raw_data = await self.__reader.read(size)
         if len(raw_data) != size:
-            raise ConnectionError("Unable to read the data")
+            raise ConnectionError(f"Unable to read the data ({len(raw_data)}")
 
         return raw_data
 
@@ -222,13 +218,12 @@ class Peer():
             raise ValueError("Writer closed")
 
         self.__writer.write(raw_data)
-        await self.__writer.drain()
+        # await self.__writer.drain()
 
     async def __read_loop(self):
         while True:
             try:
                 raw_data = await self.__read_message()
-
                 header = get_header_from_bytes(raw_data)
                 header_type = header.type
                 raw_payload = get_raw_payload(raw_data)
@@ -240,18 +235,27 @@ class Peer():
             if header_type == EXCHANGE_PUBLIC_PEERS:
                 exchange_public_peers = ExchangePublicPeers.from_buffer_copy(
                     raw_payload)
-                self._qubic_manager.add_ip(
+                self.__qubic_manager.add_ip(
                     set(exchange_public_peers_to_list(exchange_public_peers)))
 
-            await self._qubic_manager.send_other(raw_data, self)
+            if header_type == BROADCAST_COMPUTORS:
+                print("BROADCAST_COMPUTORS")
+                computors = Computors.from_buffer_copy(raw_payload)
+                if is_valid_broadcast_computors(computors):
+                    await apply_computors_data(computors)
+
+            await self.__qubic_manager.send_other(raw_data, self)
 
     async def __read_message(self):
         if self.__state != PeerState.CONNECTED:
-            return
+            raise ConnectionRefusedError()
+            
 
-        print("Read data")
         # Reading Header
-        raw_header = await self.__read_data(sizeof(RequestResponseHeader))
+        try:
+            raw_header = await self.__read_data(sizeof(RequestResponseHeader))
+        except Exception as e:
+            raise e
         header = RequestResponseHeader.from_buffer_copy(raw_header)
 
         # Checking package validity
@@ -259,14 +263,17 @@ class Peer():
             raise ValueError("Invalid header")
 
         # Reading payload
-        raw_payload = await self.__read_data(header.size - sizeof(header))
+        try:
+            raw_payload = await self.__read_data(header.size - sizeof(header))
+        except Exception as e:
+            raise e
 
         return raw_header + raw_payload
 
     def foget_peer(self):
         """We forget about this peer so we don't connect to it again.
         """
-        self._qubic_manager.foget_peer(self)
+        self.__qubic_manager.foget_peer(self)
 
     async def cancel_task(self, task: asyncio.Task):
         if not task.cancelled():
@@ -282,17 +289,19 @@ class Peer():
         if self.__connect_task != None:
             await self.cancel_task(self.__connect_task)
 
+
         if self.__writer != None and not self.__writer.is_closing():
             self.__writer.close()
             await self.__writer.wait_closed()
 
+
         for task in self.__background_tasks:
             task.cancel()
 
-        try:
-            await asyncio.gather(*self.__background_tasks, return_exceptions=True)
-        except asyncio.CancelledError:
-            pass
+        # try:
+        #     await asyncio.gather(*self.__background_tasks, return_exceptions=True)
+        # except asyncio.CancelledError:
+        #     pass
 
 
 if __name__ == "__main__":
