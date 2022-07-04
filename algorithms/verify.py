@@ -1,5 +1,5 @@
 import ctypes
-from ctypes import CDLL, create_string_buffer, create_unicode_buffer
+from ctypes import CDLL, create_string_buffer
 from sys import platform
 
 

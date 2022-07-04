@@ -17,7 +17,6 @@ class IdentityManager():
 
         self._identity = identity
 
-
         if len(new_identity) > 0:
             self.call_added_new(new_identity)
         if len(old_identity) > 0:
@@ -80,3 +79,5 @@ class IdentityManager():
         # TODO: Will it affect other coroutines?
         if not loop.is_running():
             loop.close()
+
+identity_manager = IdentityManager()
