@@ -1,6 +1,5 @@
-
-import aiofiles
-from qubicdata import (EMPTY_PUBLIC_KEY, ADMIN_PUBLIC_KEY, SIGNATURE_SIZE, Computors,
+from data.identity import identity_manager
+from qubic.qubicdata import (EMPTY_PUBLIC_KEY, ADMIN_PUBLIC_KEY, SIGNATURE_SIZE, Computors,
                        ExchangePublicPeers, RequestResponseHeader, c_ip_type, computors_system_data)
 import os
 import sys
@@ -117,13 +116,13 @@ def can_apply_computors_data(computors: Computors):
 
 async def apply_computors_data(computors: Computors):
     if can_apply_computors_data(computors):
-        async with aiofiles.open("identity.data", "w") as f:
-            identity = []
-            raw_public_key_list = list(bytes(computors.public_keys))
-            for idx in range(0, len(raw_public_key_list), 32):
-                public_key = bytes(computors.public_keys[idx: idx + 32])
-                if public_key != EMPTY_PUBLIC_KEY:
-                    identity.append(get_identity(public_key))
+        identity = []
+        raw_public_key_list = list(bytes(computors.public_keys))
+        for idx in range(0, len(raw_public_key_list), 32):
+            public_key = bytes(computors.public_keys[idx: idx + 32])
+            if public_key != EMPTY_PUBLIC_KEY:
+                identity.append(get_identity(public_key))
 
-            await f.write(str(identity))
+        identity_manager.apply_identity(set(identity))
+        await identity_manager.save_to_file()
             

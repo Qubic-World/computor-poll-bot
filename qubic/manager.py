@@ -6,11 +6,10 @@ from os import getenv
 from random import shuffle
 from typing import Optional
 
-from dotenv import load_dotenv
 
-from qubicdata import (BROADCAST_COMPUTORS, EXCHANGE_PUBLIC_PEERS, Computors,
+from qubic.qubicdata import (BROADCAST_COMPUTORS, EXCHANGE_PUBLIC_PEERS, Computors,
                        ExchangePublicPeers, PeerState, RequestResponseHeader)
-from qubicutils import (exchange_public_peers_to_list, get_header_from_bytes,
+from qubic.qubicutils import (exchange_public_peers_to_list, get_header_from_bytes,
                         get_protocol_version, get_raw_payload,
                         is_valid_broadcast_computors, is_valid_header,
                         is_valid_ip, apply_computors_data)
@@ -304,27 +303,27 @@ class Peer():
         #     pass
 
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
 
-    load_dotenv()
+#     load_dotenv()
 
-    network = QubicNetworkManager(["213.127.147.70",
-                                   "83.57.175.137",
-                                   "178.172.194.130",
-                                   "82.114.88.225",
-                                   "82.223.197.126",
-                                   "82.223.165.100",
-                                   "85.215.98.91",
-                                   "212.227.149.43"])
+#     network = QubicNetworkManager(["213.127.147.70",
+#                                    "83.57.175.137",
+#                                    "178.172.194.130",
+#                                    "82.114.88.225",
+#                                    "82.223.197.126",
+#                                    "82.223.165.100",
+#                                    "85.215.98.91",
+#                                    "212.227.149.43"])
 
-    loop = asyncio.new_event_loop()
-    try:
-        loop.run_until_complete(network.start())
-    except KeyboardInterrupt:
-        pass
-    finally:
-        print("Before stop")
-        # loop.run_until_complete(network.stop())
-        loop.run_until_complete(network.stop())
-        loop.close()
-        print("After stop")
+#     loop = asyncio.new_event_loop()
+#     try:
+#         loop.run_until_complete(network.start())
+#     except KeyboardInterrupt:
+#         pass
+#     finally:
+#         print("Before stop")
+#         # loop.run_until_complete(network.stop())
+#         loop.run_until_complete(network.stop())
+#         loop.close()
+#         print("After stop")

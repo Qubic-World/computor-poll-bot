@@ -6,8 +6,9 @@ from discord.ext import commands
 from dotenv import load_dotenv
 
 from commands.pool import PoolCommands
+from qubic.manager import QubicNetworkManager
 from role import RoleManager
-from data.identity import IdentityManager
+from data.identity import identity_manager
 from data.users import UserData
 from utils.broadcastcomputors import broadcast_loop
 from utils.message import (get_identity_list, get_user_id_from_message, is_valid_identity,
@@ -21,7 +22,6 @@ poll_bot = commands.Bot(command_prefix="/", intents=intents)
 
 pool_commands = PoolCommands()
 user_data = UserData()
-identity_manager = IdentityManager()
 role_manager = RoleManager(user_data, poll_bot)
 
 
@@ -71,9 +71,19 @@ def main():
         # Running pool of commands
         pool_commands.start()
 
-        broadcast_computors_task = loop.create_task(
-            broadcast_loop(identity_manager))
+        # broadcast_computors_task = loop.create_task(
+        #     broadcast_loop(identity_manager))
 
+        network = QubicNetworkManager(["213.127.147.70",
+                                    "83.57.175.137",
+                                    "178.172.194.130",
+                                    "82.114.88.225",
+                                    "82.223.197.126",
+                                    "82.223.165.100",
+                                    "85.215.98.91",
+                                    "212.227.149.43"])
+
+        network_task = loop.create_task(network.start())
         # Running the bot
         task = loop.create_task(poll_bot.start(
             token, bot=True, reconnect=True))
@@ -84,13 +94,17 @@ def main():
         loop.run_until_complete(pool_commands.stop())
         loop.run_until_complete(identity_manager.stop())
         loop.run_until_complete(poll_bot.close())
-        broadcast_computors_task.cancel()
+        loop.run_until_complete(network.stop())
+        if not network_task.cancelled():
+            network_task.cancel()
+        # # broadcast_computors_task.cancel()
         try:
-            loop.run_until_complete(broadcast_computors_task)
+            loop.run_until_complete(network_task)
         except asyncio.CancelledError:
             pass
     finally:
-        loop.close()
+        if not loop.is_closed():
+            loop.close()
 
 
 if __name__ == "__main__":
