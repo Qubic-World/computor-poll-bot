@@ -10,8 +10,8 @@ from qubic.manager import QubicNetworkManager
 from role import RoleManager
 from data.identity import identity_manager
 from data.users import UserData
-from utils.broadcastcomputors import broadcast_loop
-from utils.message import (get_identity_list, get_user_id_from_message, is_valid_identity,
+from utils.botutils import get_channel_id
+from utils.message import (get_identity_list, get_user_id_from_message,
                            is_valid_message)
 from verify.user import is_existing_user
 
@@ -25,12 +25,19 @@ user_data = UserData()
 role_manager = RoleManager(user_data, poll_bot)
 
 
+async def is_valid_channel(ctx):
+    return ctx.message.channel.id == get_channel_id()
+
+
 @poll_bot.command(name='register')
+@commands.check(is_valid_channel)
 # Adding to the pool
 async def _register(ctx, *, json):
     await pool_commands.add_command(register, ctx, json)
 
 # Executing from pool
+
+
 async def register(ctx, json):
     result = is_valid_message(json)
     if result[0] == False:
@@ -75,13 +82,13 @@ def main():
         #     broadcast_loop(identity_manager))
 
         network = QubicNetworkManager(["213.127.147.70",
-                                    "83.57.175.137",
-                                    "178.172.194.130",
-                                    "82.114.88.225",
-                                    "82.223.197.126",
-                                    "82.223.165.100",
-                                    "85.215.98.91",
-                                    "212.227.149.43"])
+                                       "83.57.175.137",
+                                       "178.172.194.130",
+                                       "82.114.88.225",
+                                       "82.223.197.126",
+                                       "82.223.165.100",
+                                       "85.215.98.91",
+                                       "212.227.149.43"])
 
         network_task = loop.create_task(network.start())
         # Running the bot

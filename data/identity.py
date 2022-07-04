@@ -6,7 +6,7 @@ import ast
 class IdentityManager():
     def __init__(self) -> None:
         self._identity = set()
-        self._file_name = "identity.data"
+        self._file_name = "./data_files/identity.data"
         self._observers_added = set()
         self._observers_removed = set()
         self.background_task = set()

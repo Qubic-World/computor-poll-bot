@@ -9,7 +9,7 @@ class UserData():
     def __init__(self) -> None:
         self._json_data = dict()
         self.reset()
-        self._json_file_name = "userdata.json"
+        self._json_file_name = "./data_files/userdata.json"
 
     def add_data(self, user_id: str, identity_list: list):
         found_id = next(
