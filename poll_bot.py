@@ -64,6 +64,10 @@ def main():
     # Read from .env
     load_dotenv()
 
+    # Creating folder for files
+    if not os.path.isdir("data_files"):
+        os.mkdir("data_files")
+
     token = os.environ.get("BOT_ACCESS_TOKEN")
     loop = asyncio.get_event_loop()
 
