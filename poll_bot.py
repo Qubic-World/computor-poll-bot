@@ -7,10 +7,11 @@ from dotenv import load_dotenv
 
 from commands.pool import PoolCommands
 from qubic.manager import QubicNetworkManager
+from qubic.qubicutils import load_cache_computors
 from role import RoleManager
 from data.identity import identity_manager
 from data.users import UserData
-from utils.botutils import get_channel_id
+from utils.botutils import get_channel_id, get_role_by_id
 from utils.message import (get_identity_list, get_user_id_from_message,
                            is_valid_message)
 from verify.user import is_existing_user
@@ -36,9 +37,7 @@ async def _register(ctx, *, json):
     await pool_commands.add_command(register, ctx, json)
 
 # Executing from pool
-
-
-async def register(ctx, json):
+async def register(ctx: commands.Context, json):
     result = is_valid_message(json)
     if result[0] == False:
         await ctx.reply(result[1])
@@ -54,6 +53,14 @@ async def register(ctx, json):
     user_data.add_data(user_id, get_identity_list(json))
     await asyncio.gather(user_data.save_to_file(), ctx.reply(f"User {username_result[1]} added"))
 
+@poll_bot.command(name="roles")
+@commands.check(is_valid_channel)
+async def _roles(ctx):
+    await pool_commands.add_command(roles, ctx)
+
+async def roles(ctx: commands.Context):
+    await ctx.channel.send(", ".join([str(f"Name: {r.name}, ID: {r.id}") for r in ctx.guild.roles]))
+
 
 @poll_bot.event
 async def on_ready():
@@ -67,23 +74,25 @@ def main():
     # Creating folder for files
     if not os.path.isdir("data_files"):
         os.mkdir("data_files")
+    
 
     token = os.environ.get("BOT_ACCESS_TOKEN")
     loop = asyncio.get_event_loop()
 
-    # Loading data
+    # Loading computors
+    loop.run_until_complete(load_cache_computors())
+
+    # Loading user data and identities
     loop.run_until_complete(asyncio.gather(
         user_data.load_from_file(), identity_manager.load_from_file()))
 
+    # Setting identity manager
     identity_manager.observe_added(role_manager.add_role)
     identity_manager.observe_removed(role_manager.remove_role)
 
     try:
         # Running pool of commands
         pool_commands.start()
-
-        # broadcast_computors_task = loop.create_task(
-        #     broadcast_loop(identity_manager))
 
         network = QubicNetworkManager(["213.127.147.70",
                                        "83.57.175.137",

@@ -22,7 +22,7 @@ ADMIN_PUBLIC_KEY = get_public_key_from_id(ADMIN_ID)
 EMPTY_PUBLIC_KEY = bytes(KEY_SIZE)
 
 
-class PeerState(Enum):
+class ConnectionState(Enum):
     NONE = 0
     CONNECTING = 1
     CONNECTED = 2

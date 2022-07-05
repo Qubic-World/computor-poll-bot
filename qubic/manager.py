@@ -4,11 +4,12 @@ import logging
 from ctypes import sizeof
 from os import getenv
 from random import shuffle
+from token import EXACT_TOKEN_TYPES
 from typing import Optional
 
 
 from qubic.qubicdata import (BROADCAST_COMPUTORS, EXCHANGE_PUBLIC_PEERS, Computors,
-                       ExchangePublicPeers, PeerState, RequestResponseHeader)
+                       ExchangePublicPeers, ConnectionState, RequestResponseHeader)
 from qubic.qubicutils import (exchange_public_peers_to_list, get_header_from_bytes,
                         get_protocol_version, get_raw_payload,
                         is_valid_broadcast_computors, is_valid_header,
@@ -21,6 +22,7 @@ class QubicNetworkManager():
         self._fogeted_ip = set()
         self._peers = set()
         self._backgound_tasks = []
+        self.__connection_state: ConnectionState = ConnectionState.NONE
 
     def add_ip(self, ip_set: set):
         for ip in ip_set:
@@ -60,7 +62,7 @@ class QubicNetworkManager():
 
     async def main_loop(self):
         NUBMER_OF_CONNECTION = 10
-        while True:
+        while self.__connection_state == ConnectionState.CONNECTED:
             number_of_available_slots = NUBMER_OF_CONNECTION - len(self._peers)
             if len(self._peers) != NUBMER_OF_CONNECTION:
 
@@ -79,21 +81,24 @@ class QubicNetworkManager():
                                 break
 
             num_of_connected = len(
-                [peer for peer in self._peers if peer.state == PeerState.CONNECTED])
+                [peer for peer in self._peers if peer.state == ConnectionState.CONNECTED])
 
             print(f"Connected: {num_of_connected}")
             await asyncio.sleep(1)
 
     async def start(self):
+        self.__connection_state = ConnectionState.CONNECTING
         for peer_ip in self._know_ip:
             self.__connect_to_peer(peer_ip)
 
+        self.__connection_state = ConnectionState.CONNECTED
         task = asyncio.create_task(self.main_loop())
         task.add_done_callback(self._backgound_tasks.remove)
         self._backgound_tasks.append(task)
         await asyncio.gather(task)
 
     async def stop(self):
+        self.__connection_state = ConnectionState.CLOSED
         tasks = []
         for peer in self._peers:
             tasks.append(peer.stop())
@@ -101,7 +106,6 @@ class QubicNetworkManager():
         await asyncio.gather(*tasks)
 
         for task in self._backgound_tasks:
-            task: asyncio.Task = task
             task.cancel()
 
         try:
@@ -118,6 +122,7 @@ class QubicNetworkManager():
 
             await asyncio.gather(*tasks)
         except Exception as e:
+
             logging.warning(e)
             pass
 
@@ -134,7 +139,7 @@ class Peer():
         self.__reader: Optional[asyncio.StreamReader] = None
         self.__writer: Optional[asyncio.StreamWriter] = None
         self.__ip = ""
-        self.__state: PeerState = PeerState.NONE
+        self.__state: ConnectionState = ConnectionState.NONE
         self.__background_tasks = []
 
     @property
@@ -150,7 +155,7 @@ class Peer():
 
         print(f"Connect to {ip}")
 
-        self.__state = PeerState.CONNECTING
+        self.__state = ConnectionState.CONNECTING
 
         self.__connect_task = asyncio.create_task(
             asyncio.open_connection(ip, port))
@@ -158,17 +163,17 @@ class Peer():
         try:
             reader, writer = await asyncio.wait_for(self.__connect_task, timeout)
         except Exception as e:
-            await self.__disconection(e)
+            await self._disconection(e)
             return
 
-        self.__state = PeerState.CONNECTED
+        self.__state = ConnectionState.CONNECTED
         self.__reader = reader
         self.__writer = writer
 
         try:
             await self.handshake()
         except Exception as e:
-            self.__disconection(e)
+            self._disconection(e)
             return
 
         task = asyncio.create_task(self.__read_loop())
@@ -191,32 +196,48 @@ class Peer():
                 get_protocol_version())
             header.type = EXCHANGE_PUBLIC_PEERS
 
-            await self.send_data(bytes(header) + bytes(exchange_public_peers))
+            try:
+                await self.send_data(bytes(header) + bytes(exchange_public_peers))
+            except Exception as e:
+                self._disconection(e)
+                return
 
-    async def __disconection(self, what):
+    async def _disconection(self, what):
         logging.warning(what)
 
         self.__qubic_manager.foget_peer(self)
         await self.stop()
 
     async def __read_data(self, size) -> bytes:
-        raw_data = await self.__reader.read(size)
+        task = asyncio.create_task(self.__reader.readexactly(size))
+        if not task.done():
+            self.__background_tasks.append(task)
+            task.add_done_callback(self.__background_tasks.remove)
+
+        raw_data = await task
         if len(raw_data) != size:
             raise ConnectionError(f"Unable to read the data ({len(raw_data)}")
 
         return raw_data
 
     async def send_data(self, raw_data: bytes):
-        if self.__state != PeerState.CONNECTED:
+        if self.__state != ConnectionState.CONNECTED:
+            self._disconection("")
             return
 
         if len(raw_data) <= 0:
             raise ValueError("Data cannot be empty")
 
         if self.__writer.is_closing():
-            raise ValueError("Writer closed")
+            e = ValueError("Writer closed")
+            self._disconection(e)
+            raise e
 
-        self.__writer.write(raw_data)
+        try:
+            self.__writer.write(raw_data)
+        except Exception as e:
+            self._disconection(e)
+            raise e
         # await self.__writer.drain()
 
     async def __read_loop(self):
@@ -228,7 +249,7 @@ class Peer():
                 raw_payload = get_raw_payload(raw_data)
 
             except Exception as e:
-                await self.__disconection(e)
+                await self._disconection(e)
                 return
 
             if header_type == EXCHANGE_PUBLIC_PEERS:
@@ -246,7 +267,7 @@ class Peer():
             await self.__qubic_manager.send_other(raw_data, self)
 
     async def __read_message(self):
-        if self.__state != PeerState.CONNECTED:
+        if self.__state != ConnectionState.CONNECTED:
             raise ConnectionRefusedError()
             
 
@@ -283,17 +304,21 @@ class Peer():
                 pass
 
     async def stop(self):
-        self.__state = PeerState.CLOSED
+        print("Stop Peer")
+        self.__state = ConnectionState.CLOSED
 
+        print("Cancel connect")
         if self.__connect_task != None:
             await self.cancel_task(self.__connect_task)
 
 
+        print("Close write")
         if self.__writer != None and not self.__writer.is_closing():
             self.__writer.close()
             await self.__writer.wait_closed()
 
 
+        print("Cancel backgroud")
         for task in self.__background_tasks:
             task.cancel()
 

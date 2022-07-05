@@ -21,3 +21,6 @@ def get_channel(poll_bot: Client):
 
 def get_role(guild: Guild):
     return guild.get_role(int(getenv("ROLE_ID")))
+
+def get_role_by_id(guild: Guild, id: int):
+    return guild.get_role(id)

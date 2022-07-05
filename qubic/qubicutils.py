@@ -1,15 +1,21 @@
-from data.identity import identity_manager
-from qubic.qubicdata import (EMPTY_PUBLIC_KEY, ADMIN_PUBLIC_KEY, SIGNATURE_SIZE, Computors,
-                       ExchangePublicPeers, RequestResponseHeader, c_ip_type, computors_system_data)
+import asyncio
 import os
 import sys
 from ctypes import sizeof
 from os import getenv
 
+import aiofiles
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
+from qubic.qubicdata import (EMPTY_PUBLIC_KEY, ADMIN_PUBLIC_KEY, SIGNATURE_SIZE, Computors,
+                             ExchangePublicPeers, RequestResponseHeader, c_ip_type, computors_system_data)
 from algorithms.verify import get_identity, kangaroo_twelve, verify
+from data.identity import identity_manager
+
+
+COMPUTORS_CACHE_PATH = "./data_files/system.data"
 
 """ IP
 """
@@ -114,6 +120,24 @@ def can_apply_computors_data(computors: Computors):
     return computors.epoch > computors_system_data.epoch or (computors.epoch == computors_system_data.epoch and computors.index > computors_system_data.index)
 
 
+async def cache_computors(computors: Computors):
+    async with aiofiles.open(COMPUTORS_CACHE_PATH, "wb") as f:
+        await f.write(bytes(computors))
+    
+    computors_system_data = computors
+
+
+async def load_cache_computors():
+    if not os.path.isfile(COMPUTORS_CACHE_PATH):
+        return 
+
+    async with aiofiles.open(COMPUTORS_CACHE_PATH, "rb") as f:
+        b = await f.read()
+        if len(b) != sizeof(Computors):
+            return
+        computors_system_data = Computors.from_buffer_copy(b)
+
+
 async def apply_computors_data(computors: Computors):
     if can_apply_computors_data(computors):
         identity = []
@@ -124,5 +148,8 @@ async def apply_computors_data(computors: Computors):
                 identity.append(get_identity(public_key))
 
         identity_manager.apply_identity(set(identity))
-        await identity_manager.save_to_file()
-            
+
+        # TODO: The identity save to file can be removed, as the public keys are stored in COMPUTORS_CACHE_PATH 
+        # await cache_computors(computors)
+        # await identity_manager.save_to_file()
+        await asyncio.gather(cache_computors(computors), identity_manager.save_to_file())
