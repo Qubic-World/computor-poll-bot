@@ -1,8 +1,9 @@
 from ast import Delete
+from asyncore import poll
 from unittest import result
 import discord
 import os
-import re
+import json
 
 from dotenv import load_dotenv
 from algorithms.verify import get_public_key_from_id, verify, str_signature_to_bytes, kangaroo_twelve
@@ -17,22 +18,23 @@ five_array = []
 total_votes = 0
 
 #beginn Vote settings
-question = "What do we want to do?"
-one_answer = "eat"
-two_answer = "sleep"
-three_answer = "developent"
-four_answer = "mining"
-five_answer = "all"
+question = ""
+one_answer = ""
+two_answer = ""
+three_answer = ""
+four_answer = ""
+five_answer = ""
 #End Vote settings
 
 async def show_result(message):
-    await message.channel.send(str(total_votes) + ''' votes to: ''' + question + '''\n
-            1 = ''' + str(len(one_array)) + ''' (''' + one_answer + ''')
-            2 = ''' + str(len(two_array))  + ''' (''' + two_answer + ''')
-            3 = ''' + str(len(three_array))  + ''' (''' + three_answer + ''')
-            4 = ''' + str(len(four_array))  + ''' (''' + four_answer + ''')
-            5 = ''' + str(len(five_array))  + ''' (''' + five_answer + ''')
-            ''')         
+    await message.channel.send(str(total_votes) + ''' votes to: \"''' + str(question) + '''\"
+            ''' + str(len(one_array)) + '''(1) = ''' + str(one_answer) + '''
+            ''' + str(len(two_array))  + '''(2) = ''' + str(two_answer) + '''
+            ''' + str(len(three_array))  + '''(3) = ''' + str(three_answer) + '''
+            ''' + str(len(four_array))  + '''(4) = ''' + str(four_answer) + '''
+            ''' + str(len(five_array))  + '''(5) = ''' + str(five_answer)
+            )   
+
 
 class MyClient(discord.Client):    
 
@@ -42,7 +44,6 @@ class MyClient(discord.Client):
 
     #When the message is posted
     async def on_message(self, message):
-
         global voting_array 
         global one_array 
         global two_array 
@@ -51,27 +52,88 @@ class MyClient(discord.Client):
         global five_array 
         global total_votes 
 
+        global question
+        global one_answer
+        global two_answer
+        global three_answer
+        global four_answer
+        global five_answer
+
         if message.author == client.user:
             return
 
-        print("Message from " + str(message.author) + " contains " + str(message.content))       
+        print("Message from " + str(message.author) + " contains " + str(message.content))  
 
-        # $voting 1 EPJCKMDJIHGMGGPGPFPBICILHPILGBHOFIKJPBMLIJIAADLEDCKFDKODGAEMPDGIPPLOEM
+        #/poll_add {"poll_text": "texttexttexttext", 
+        # "buttons": [{"button1": "button 1"}, {"button2": "button 2"}, {"button3": "button 3"}, {"button4": "button 4"}, {"button5": "button 5"}]}
+        if message.content.startswith("/poll_add"):
+            if(question == ""):                               
+                array =  message.content.split('add {')                 
+                jsonString = '{'+array[1]
+                pollObject = json.loads(jsonString)
+                question = pollObject["poll_text"]
+                
+                buttonsObject = pollObject["buttons"]
+
+                one_answer = buttonsObject[0]["button1"]
+                two_answer = buttonsObject[1]["button2"]
+                three_answer = buttonsObject[2]["button3"]
+                four_answer = buttonsObject[3]["button4"]
+                five_answer =buttonsObject[4]["button5"]
+                total_votes = 0
+
+                await show_result(message)   
+            else:
+                await message.channel.send("A survey is already running") 
+            return
+                
+
+        if(message.content == "/poll_show"):
+            if(question == ""):
+                await message.channel.send("There is no poll available.") 
+                return  
+            
+            await show_result(message)
+            return
+
+        if(message.content == "/poll_help"):
+            await message.channel.send('''Functions:
+                /poll_help
+                /poll_add {\"poll_text\": \"question\", \"buttons\": [{\"button1\": \"buttonText\"}, {\"button2\": \"buttonText\"}, {\"button3\": \"buttonText\"}, {\"button4\": \"buttonText\"}, {\"button5\": \"buttonText\"}]}
+                /poll_show
+                /help_voting
+                /voting_result
+                /voting NUMBER PUBLIC_ID ''')
+            return
+        
+        # /voting 1 EPJCKMDJIHGMGGPGPFPBICILHPILGBHOFIKJPBMLIJIAADLEDCKFDKODGAEMPDGIPPLOEM
         if(message.content == "/help_voting"):
-             await message.channel.send('''to vote: /voting NUMBER ID (where NUMBER is the choice and ID the PublicID)\n
-                Question: ''' + question + '''\n
-                1 = ''' + one_answer + '''\n
-                2 = ''' + two_answer + '''\n
-                3 = ''' + three_answer + '''\n
-                4 = ''' + four_answer + '''\n
-                5 = ''' + five_answer + '''\n\n
-                show result: /voting_result'''
-                )
+            if(question == ""):
+                await message.channel.send("There is no poll available.") 
+                return 
+
+            await message.channel.send('''to vote: /voting NUMBER ID (where NUMBER is the choice and ID the PublicID)\n
+                Question: ''' + question + '''
+                1 = ''' + one_answer + '''
+                2 = ''' + two_answer + '''
+                3 = ''' + three_answer + '''
+                4 = ''' + four_answer + '''
+                5 = ''' + five_answer )
+            return
         
         if(message.content == "/voting_result"):
-            await show_result(message)           
+            if(question == ""):
+                await message.channel.send("There is no poll available.") 
+                return  
+
+            await show_result(message)  
+            return         
 
         if message.content.startswith("/voting"):
+            if(question == ""):
+                await message.channel.send("There is no poll available.") 
+                return  
+
             voting_array =  message.content.split(' ')           
 
             if(len(voting_array) < 3):
@@ -113,7 +175,7 @@ class MyClient(discord.Client):
                 await message.channel.send("You have already voted with this PublicID: " + id) 
                 return
 
-            await message.channel.send("You voted for " + choice)       
+            await message.channel.send("You voted for " + choice + "\n")       
 
             if(choice_number == 1):
                 one_array.append(id)
