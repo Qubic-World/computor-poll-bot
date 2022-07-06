@@ -1,4 +1,5 @@
 import asyncio
+from genericpath import exists
 import aiofiles
 import ast
 
@@ -79,5 +80,15 @@ class IdentityManager():
         # TODO: Will it affect other coroutines?
         if not loop.is_running():
             loop.close()
+
+    def on_new_identities(self, identities: set):
+        existing_identities = set()
+        for id in identities:
+            if id in self._identity:
+                existing_identities.add(id)
+                
+        if len(existing_identities) > 0:
+            self.call_added_new(existing_identities)
+
 
 identity_manager = IdentityManager()

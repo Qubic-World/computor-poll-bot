@@ -1,10 +1,9 @@
 import logging
 
-from discord import Client, Guild, Member
+from discord import Client, Member
 
 from data.users import UserData
-from utils.botutils import (get_channel, get_channel_id, get_member_by_id,
-                            get_role)
+from utils.botutils import (get_member_by_id, get_role)
 from utils.message import is_valid_identity
 
 
@@ -13,12 +12,13 @@ class RoleManager():
         self._user_data: UserData = user_data
         self._bot: Client = bot
 
-    async def __set_role_to_member(self, guild: Guild, member: Member, set_role: bool = True):
+    async def __set_role_to_member(self, member: Member, set_role: bool = True):
         if member.bot:
             raise ValueError("you cannot assign a role to the bot")
 
         try:
-            role = get_role(guild)
+
+            role = get_role(self._bot)
             if set_role:
                 await member.add_roles(role)
             else:
@@ -37,12 +37,7 @@ class RoleManager():
             if user_id != None:
                 member = get_member_by_id(self._bot, user_id)
                 if member != None:
-                    channel = get_channel(self._bot)
-                    if channel != None:
-                        await self.__set_role_to_member(channel.guild, member, set_role)
-                    else:
-                        raise ValueError(
-                            f"Failed to get a channel by ID: {get_channel_id()}")
+                    await self.__set_role_to_member(member, set_role)
 
     async def add_role(self, identity: set):
         try:

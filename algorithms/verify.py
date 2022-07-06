@@ -46,8 +46,9 @@ def kangaroo_twelve(data: bytes) -> bytes:
 
 
 def str_signature_to_bytes(signature: str) -> bytes:
-    if len(signature) != 128:
-        return bytes()
+    # length must be a multiple of 2
+    if len(signature) % 2 != 0:
+        signature = 'a' + signature
 
     signature_bytes_list = []
     for idx in range(0, len(signature), 2):
