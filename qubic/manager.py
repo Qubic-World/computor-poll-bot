@@ -68,7 +68,7 @@ class QubicNetworkManager():
 
                 # If there are few known peers left, try reconnecting to forgotten ones
                 if len(self._know_ip) <= 1 and len(self._fogeted_ip) > 0:
-                    self._know_ip.union(self._fogeted_ip)
+                    self._know_ip = self._know_ip.union(self._fogeted_ip)
 
                 if len(self._know_ip) > 0:
                     list_ip = list(self._know_ip)
@@ -127,9 +127,10 @@ class QubicNetworkManager():
             pass
 
     def foget_peer(self, peer):
-        self._peers.remove(peer)
-        self._know_ip.remove(peer.ip)
-        self._fogeted_ip.add(peer.ip)
+        if peer in self._peers:
+            self._peers.remove(peer)
+            self._know_ip.remove(peer.ip)
+            self._fogeted_ip.add(peer.ip)
 
 
 class Peer():
@@ -149,6 +150,10 @@ class Peer():
     @property
     def state(self):
         return self.__state
+
+    @property
+    def read_timeout(self):
+        return 10
 
     async def connect(self, ip: str, port: int, timeout: int):
         self.__ip = ip
@@ -210,11 +215,10 @@ class Peer():
 
     async def __read_data(self, size) -> bytes:
         task = asyncio.create_task(self.__reader.readexactly(size))
-        if not task.done():
-            self.__background_tasks.append(task)
-            task.add_done_callback(self.__background_tasks.remove)
+        self.__background_tasks.append(task)
+        task.add_done_callback(self.__background_tasks.remove)
 
-        raw_data = await task
+        raw_data = await asyncio.wait_for(task, self.read_timeout)
         if len(raw_data) != size:
             raise ConnectionError(f"Unable to read the data ({len(raw_data)}")
 
@@ -273,7 +277,10 @@ class Peer():
 
         # Reading Header
         try:
-            raw_header = await self.__read_data(sizeof(RequestResponseHeader))
+            task = asyncio.create_task(self.__read_data(sizeof(RequestResponseHeader)))
+            self.__background_tasks.append(task)
+            task.add_done_callback(self.__background_tasks.remove)
+            raw_header = await asyncio.wait_for(task, self.read_timeout)
         except Exception as e:
             raise e
         header = RequestResponseHeader.from_buffer_copy(raw_header)
