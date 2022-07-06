@@ -1,5 +1,6 @@
 import asyncio
 import os
+from typing import Optional
 
 from discord import Intents, Member
 from discord.ext import commands
@@ -17,25 +18,51 @@ from utils.message import (get_identity_list, get_username_from_message,
                            is_valid_message)
 from verify.user import get_user_id_from_username
 
+"""Commands Bot
+"""
 intents = Intents.default()
 intents.members = True
 intents.messages = True
 poll_bot = commands.Bot(command_prefix="/", intents=intents)
 
+"""Managers
+"""
 pool_commands = PoolCommands()
 user_data = UserData()
 role_manager = RoleManager(user_data, poll_bot)
 
 
+"""Qubic Network
+"""
+network = QubicNetworkManager(["213.127.147.70",
+                                   "83.57.175.137",
+                                   "178.172.194.130",
+                                   "82.114.88.225",
+                                   "82.223.197.126",
+                                   "82.223.165.100",
+                                   "85.215.98.91",
+                                   "212.227.149.43"])
+network_task:Optional[asyncio.Task] = None
+
+
+"""Commands
+"""
+
 @poll_bot.command(name='register')
 @commands.check(is_valid_channel)
 @commands.check(is_valid_role)
-# Adding to the pool
 async def _register(ctx, *, json):
+    """User registration
+    """
+    # Adding to the pool
     await pool_commands.add_command(register, ctx, json)
 
 # Executing from pool
+
+
 async def register(ctx: commands.Context, json):
+    """User registration
+    """
     result = is_valid_message(json)
     if result[0] == False:
         await ctx.reply(result[1])
@@ -66,26 +93,12 @@ async def register(ctx: commands.Context, json):
     await asyncio.gather(user_data.save_to_file(), ctx.reply(f"User {username} added"))
 
 
-@poll_bot.command(name="roles")
-@commands.check(is_valid_channel)
-async def _roles(ctx):
-    await pool_commands.add_command(roles, ctx)
-
-
-async def roles(ctx: commands.Context):
-    guild = get_guild(poll_bot)
-
-    member: Member = ctx.message.author
-    await ctx.reply(member.guild.name)
-    try:
-        await member.add_roles(get_role(poll_bot))
-    except Exception as e:
-        ctx.reply(str(e))
-
-
 @poll_bot.event
 async def on_ready():
     print("On ready")
+
+    # Starting qubic-netwrok
+    network_task = asyncio.create_task(network.start())
 
 
 def main():
@@ -115,17 +128,6 @@ def main():
         # Running pool of commands
         pool_commands.start()
 
-        network = QubicNetworkManager(["213.127.147.70",
-                                       "83.57.175.137",
-                                       "178.172.194.130",
-                                       "82.114.88.225",
-                                       "82.223.197.126",
-                                       "82.223.165.100",
-                                       "85.215.98.91",
-                                       "212.227.149.43"])
-
-        # TODO:
-        # network_task = loop.create_task(network.start())
         # Running the bot
         task = loop.create_task(poll_bot.start(
             token, bot=True, reconnect=True))
@@ -137,12 +139,12 @@ def main():
         loop.run_until_complete(identity_manager.stop())
         loop.run_until_complete(poll_bot.close())
         loop.run_until_complete(network.stop())
-        # if not network_task.cancelled():
-        #     network_task.cancel()
-        # try:
-        #     loop.run_until_complete(network_task)
-        # except asyncio.CancelledError:
-        #     pass
+        if  network_task != None and not network_task.cancelled():
+            network_task.cancel()
+            try:
+                loop.run_until_complete(network_task)
+            except asyncio.CancelledError:
+                pass
     finally:
         if not loop.is_closed():
             loop.close()

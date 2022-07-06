@@ -222,26 +222,26 @@ class Peer():
 
     async def send_data(self, raw_data: bytes):
         if self.__state != ConnectionState.CONNECTED:
-            self._disconection("")
             return
 
         if len(raw_data) <= 0:
-            raise ValueError("Data cannot be empty")
+            await self._disconection("Data cannot be empty")
+            return
 
         if self.__writer.is_closing():
-            e = ValueError("Writer closed")
-            self._disconection(e)
-            raise e
+            await self._disconection("Writer closed")
+            return
 
         try:
             self.__writer.write(raw_data)
+            await self.__writer.drain()
         except Exception as e:
-            self._disconection(e)
-            raise e
+            await self._disconection(e)
+            return
         # await self.__writer.drain()
 
     async def __read_loop(self):
-        while True:
+        while self.__state == ConnectionState.CONNECTED:
             try:
                 raw_data = await self.__read_message()
                 header = get_header_from_bytes(raw_data)
@@ -298,10 +298,10 @@ class Peer():
     async def cancel_task(self, task: asyncio.Task):
         if not task.cancelled():
             task.cancel()
-            try:
-                await asyncio.gather(task, return_exceptions=True)
-            except asyncio.CancelledError:
-                pass
+            # try:
+            #     await asyncio.gather(task, return_exceptions=True)
+            # except asyncio.CancelledError:
+            #     pass
 
     async def stop(self):
         print("Stop Peer")
@@ -311,44 +311,14 @@ class Peer():
         if self.__connect_task != None:
             await self.cancel_task(self.__connect_task)
 
-
         print("Close write")
         if self.__writer != None and not self.__writer.is_closing():
             self.__writer.close()
-            await self.__writer.wait_closed()
-
+            try:
+                await self.__writer.wait_closed()
+            except ConnectionResetError:
+                pass
 
         print("Cancel backgroud")
         for task in self.__background_tasks:
-            task.cancel()
-
-        # try:
-        #     await asyncio.gather(*self.__background_tasks, return_exceptions=True)
-        # except asyncio.CancelledError:
-        #     pass
-
-
-# if __name__ == "__main__":
-
-#     load_dotenv()
-
-#     network = QubicNetworkManager(["213.127.147.70",
-#                                    "83.57.175.137",
-#                                    "178.172.194.130",
-#                                    "82.114.88.225",
-#                                    "82.223.197.126",
-#                                    "82.223.165.100",
-#                                    "85.215.98.91",
-#                                    "212.227.149.43"])
-
-#     loop = asyncio.new_event_loop()
-#     try:
-#         loop.run_until_complete(network.start())
-#     except KeyboardInterrupt:
-#         pass
-#     finally:
-#         print("Before stop")
-#         # loop.run_until_complete(network.stop())
-#         loop.run_until_complete(network.stop())
-#         loop.close()
-#         print("After stop")
+            await self.cancel_task(task)
