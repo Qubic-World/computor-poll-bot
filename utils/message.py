@@ -69,8 +69,7 @@ def is_valid_message(message):
         return (False, "Invalid checksum")
 
     public_key = get_public_key_from_id(identity)
-    digest = kangaroo_twelve(message.encode('ascii'))
-    if verify(public_key, digest, signature_without_checksum) == False:
+    if verify_message(public_key, message.encode('ascii'), signature_without_checksum) == False:
         return (False, "Message failed to be verified")
 
     return (True, "Good!")

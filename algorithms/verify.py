@@ -32,6 +32,12 @@ def verify(public_key: bytes, digest: bytes, signature: bytes) -> bool:
 
     return verify_C(ctypes.c_char_p(public_key), ctypes.c_char_p(digest), ctypes.c_char_p(signature))
 
+def verify_message(public_key: bytes, message: bytes, signature: bytes) -> bool:
+    verify_message_C = qubic_verify_dll.verify_message
+    verify_message_C.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint64, ctypes.c_char_p]
+    verify_message_C.restype = ctypes.c_bool
+
+    return verify_message_C(ctypes.c_char_p(public_key), ctypes.c_char_p(message), ctypes.c_uint64(len(message)), ctypes.c_char_p(signature))
 
 def kangaroo_twelve(data: bytes) -> bytes:
     kangaroo_twelve_C = qubic_verify_dll.kangaroo_twelve
@@ -106,6 +112,16 @@ def sign(subseed: bytes, public_key: bytes, digest: bytes) -> bytes:
     signature_buffer = create_string_buffer(64)
     sign_C(ctypes.c_char_p(subseed), ctypes.c_char_p(
         public_key), ctypes.c_char_p(digest), signature_buffer)
+    return bytes(signature_buffer)
+
+def sign_message(subseed: bytes, public_key: bytes, message: bytes) -> bytes:
+    sign_message_C = qubic_verify_dll.sign_message
+    sign_message_C.argtypes = [ctypes.c_char_p, ctypes.c_char_p,
+                       ctypes.c_char_p, ctypes.c_uint64, ctypes.c_char_p]
+
+    signature_buffer = create_string_buffer(64)
+    sign_message_C(ctypes.c_char_p(subseed), ctypes.c_char_p(
+        public_key), ctypes.c_char_p(message), ctypes.c_uint64(len(message)), signature_buffer)
     return bytes(signature_buffer)
 
 
