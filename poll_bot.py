@@ -2,21 +2,21 @@ import asyncio
 import os
 from typing import Optional
 
-from discord import Intents, Member
+from discord import Intents
 from discord.ext import commands
 from dotenv import load_dotenv
-from checkers import is_valid_channel, is_valid_role
 
+from checkers import is_valid_channel, is_valid_role
 from commands.pool import PoolCommands
+from data.identity import identity_manager
+from data.users import UserData
 from qubic.manager import QubicNetworkManager
 from qubic.qubicutils import load_cache_computors
 from role import RoleManager
-from data.identity import identity_manager
-from data.users import UserData
-from utils.botutils import get_guild, get_role
+from utils.botutils import get_username_with_discr
 from utils.message import (get_identity_list, get_username_from_message,
                            is_valid_message)
-from verify.user import get_user_id_from_username
+from verify.user import get_member_by_username, get_user_id_from_username
 
 """Commands Bot
 """
@@ -35,18 +35,19 @@ role_manager = RoleManager(user_data, poll_bot)
 """Qubic Network
 """
 network = QubicNetworkManager(["213.127.147.70",
-                                   "83.57.175.137",
-                                   "178.172.194.130",
-                                   "82.114.88.225",
-                                   "82.223.197.126",
-                                   "82.223.165.100",
-                                   "85.215.98.91",
-                                   "212.227.149.43"])
-network_task:Optional[asyncio.Task] = None
+                               "83.57.175.137",
+                               "178.172.194.130",
+                               "82.114.88.225",
+                               "82.223.197.126",
+                               "82.223.165.100",
+                               "85.215.98.91",
+                               "212.227.149.43"])
+network_task: Optional[asyncio.Task] = None
 
 
 """Commands
 """
+
 
 @poll_bot.command(name='register')
 @commands.check(is_valid_channel)
@@ -73,13 +74,24 @@ async def register(ctx: commands.Context, json):
         await ctx.reply("Failed to retrieve username from message field")
         return
 
+    member = get_member_by_username(poll_bot, username)
+    error_message = ""
+    if member == None:
+        error_message = "Unable to find the user"
+    elif get_username_with_discr(ctx.author) != username:
+        error_message = "The request must include your username"
+
+    if len(error_message) > 0:
+        await ctx.reply(error_message)
+        return
+
     try:
-        message = ""
+        message = str()
         user_id = get_user_id_from_username(poll_bot, username)
         if user_id == None:
-            message = "Unable to find the user"
+            message = str("Unable to find the user")
     except ValueError as e:
-        message = str(e)
+        message = str("Error: " + str(e))
     finally:
         if len(message) > 0:
             await ctx.reply(message)
@@ -139,7 +151,7 @@ def main():
         loop.run_until_complete(identity_manager.stop())
         loop.run_until_complete(poll_bot.close())
         loop.run_until_complete(network.stop())
-        if  network_task != None and not network_task.cancelled():
+        if network_task != None and not network_task.cancelled():
             network_task.cancel()
             try:
                 loop.run_until_complete(network_task)

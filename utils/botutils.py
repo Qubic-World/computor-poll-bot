@@ -1,5 +1,6 @@
 
 import logging
+from ssl import MemoryBIO
 from discord import Client, Member
 from discord.utils import get
 from discord.ext import commands
@@ -46,3 +47,8 @@ def get_role(poll_bot: Client):
 
 def get_role_by_context(ctx: commands.Context):
     return get(ctx.guild.roles, name=get_role_name())
+
+def get_username_with_discr(member: Member) -> str:
+    """Returns username#4444
+    """
+    return str(member.name + '#' + member.discriminator)
