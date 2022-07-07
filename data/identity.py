@@ -1,5 +1,4 @@
 import asyncio
-from genericpath import exists
 import aiofiles
 import ast
 

@@ -273,7 +273,6 @@ class Peer():
     async def __read_message(self):
         if self.__state != ConnectionState.CONNECTED:
             raise ConnectionRefusedError()
-            
 
         # Reading Header
         try:
