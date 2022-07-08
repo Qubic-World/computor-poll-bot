@@ -302,7 +302,7 @@ class PollCog(commands.Cog):
 
         poll = Poll(self.__bot, ctx, description, variants)
         self.__poll_list.append(poll)
-        # TODO: When the poll is complete, delete it from the file
+        
         self.init_callback(poll)
         await poll.create()
 
