@@ -1,6 +1,10 @@
 import asyncio
+from http.client import HTTPException
+import json
 from typing import Optional
 from uuid import UUID, uuid4
+
+import aiofiles
 
 from checkers import has_role_on_member
 from commands.pool import pool_commands
@@ -39,6 +43,8 @@ class Poll():
         self.__poll_message_id: Optional[int] = None
         self.__poll_message: Optional[Message] = None
         self.__done_callback = set()
+        self.__create_callback = set()
+        self.__voted_callback = set()
         self.__components = []
         self.__background_tasks = []
         """Number of votes for a specific vote
@@ -47,6 +53,17 @@ class Poll():
         """Users who took part in the poll and their numbers of votes
         """
         self.__voted_users = dict()
+
+    @property
+    def message_id(self):
+        return self.__poll_message_id
+
+    def as_dict(self):
+        return {"id": str(self.__id),
+                "variants": list(self.__variants),
+                "poll_message_id": self.__poll_message_id,
+                "vote_counter": str(self.__vote_counter),
+                "voted_users": str(self.__voted_users)}
 
     async def __listen_buttons(self):
         custom_id_list = [
@@ -123,16 +140,14 @@ class Poll():
                 """
                 add_vote(interaction)
 
-                # if self.__poll_message == None:
-                #     self.__poll_message =self.__get_message_by_id()
-                #     if self.__poll_message == None:
-                #         raise ValueError("Failed to retrieve ID message")
-
                 """Outputting the number of votes
                 """
                 embed: Embed = self.__poll_message.embeds[0]
                 embed.set_footer(text=f'Vote count:\n {pretty_vote_count()}')
                 await self.__poll_message.edit(embed=embed)
+
+                await self.call_callback(self.__voted_callback)
+                # TODO: Check if 451 Voices has been collected
 
             except asyncio.CancelledError:
                 pass
@@ -159,6 +174,21 @@ class Poll():
         self.__background_tasks.append(task)
         task.add_done_callback(self.__background_tasks.remove)
 
+        await self.call_callback(self.__create_callback)
+
+    async def call_callback(self, functions, *args):
+        if len(functions) > 0:
+            coroutine_list = []
+            for callback in functions:
+                if asyncio.iscoroutinefunction(callback):
+                    coroutine_list.append(
+                        asyncio.create_task(callback(self, *args)))
+                else:
+                    callback(self, *args)
+
+            if len(coroutine_list) > 0:
+                await asyncio.wait(coroutine_list)
+
     async def done(self):
         """Completing the poll
         """
@@ -169,25 +199,23 @@ class Poll():
 
         """Notify listeners that the poll has been completed
         """
-        if len(self.__done_callback) > 0:
-            coroutine_list = []
-            for callback in self.__done_callback:
-                if asyncio.iscoroutinefunction(callback):
-                    coroutine_list.append(asyncio.create_task(callable(self)))
-                else:
-                    callable(self)
-
-            if len(coroutine_list) > 0:
-                await asyncio.wait(coroutine_list)
+        await self.call_callback(self.__done_callback)
 
     def add_done_callback(self, function):
         self.__done_callback.add(function)
+
+    def add_crete_callback(self, function):
+        self.__create_callback.add(function)
+
+    def add_voted_callback(self, function):
+        self.__voted_callback.add(function)
 
 
 class PollCog(commands.Cog):
     def __init__(self, bot) -> None:
         self.__bot = bot
         self.__poll_list = []
+        self.__cache_file = r"./data_files/poll_cache.data"
 
     def _is_valid_message(self, description: str, *variants: str):
         if len(variants) >= MINIMUM_NUMBER_OF_VARIANTS and len(variants) <= MAXIMUM_NUMBER_OF_VARIANTS:
@@ -214,8 +242,31 @@ class PollCog(commands.Cog):
 
         poll = Poll(self.__bot, ctx, description, variants)
         self.__poll_list.append(poll)
+        # TODO: When the poll is complete, delete it from the file
         poll.add_done_callback(self.__poll_list.remove)
+        poll.add_crete_callback(self.__on_cache_polls)
+        poll.add_voted_callback(self.__on_cache_polls)
         await poll.create()
+
+    async def __on_cache_polls(self, poll: Poll):
+        dict_list = []
+        for item in self.__poll_list:
+            dict_list.append(item.as_dict())
+
+        async with aiofiles.open(self.__cache_file, "w") as f:
+            await f.write(json.dumps(str(dict_list)))
+
+    @commands.Cog.listener()
+    async def on_message_delete(self, message):
+        removed = False
+        for poll in reversed(self.__poll_list):
+            if poll.message_id == message.id:
+                self.__poll_list.remove(poll)
+                removed = True
+
+        if removed:
+            await self.__on_cache_polls(None)
+
 
 
 class PollManager():
