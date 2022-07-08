@@ -115,9 +115,8 @@ async def on_ready():
     await poll_cog.load_from_cache()
     poll_bot.add_cog(poll_cog)
 
-    # TODO: Enable
     # Starting qubic-netwrok
-    # network_task = asyncio.create_task(network.start())
+    network_task = asyncio.create_task(network.start())
 
 
 def main():
