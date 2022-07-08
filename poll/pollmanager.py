@@ -31,13 +31,20 @@ class Poll():
         self.__ctx = ctx
         self.__description = description
         self.__variants = variants
+        """Poll ID
+        """
         self.__id: UUID = uuid4()
         self.__poll_message_id: Optional[int] = None
         self.__poll_message: Optional[Message] = None
         self.__done_callback = set()
         self.__components = []
         self.__background_tasks = []
+        """Number of votes for a specific vote
+        """
         self.__vote_counter = dict()
+        """Users who took part in the poll and their numbers of votes
+        """
+        self.__voted_users = dict()
 
     async def __listen_buttons(self):
         custom_id_list = [
@@ -66,10 +73,17 @@ class Poll():
             """
             return self.__variants[get_variant_index(interaction)]
 
-        def add_vote(variant_index: int):
+        def add_vote(interaction):
             """Increasing the number of votes
             """
-            dict_key = variant_index
+
+            """Increase the number of votes of a particular user
+            """
+            user_id = interaction.user.id
+            value = self.__voted_users.setdefault(user_id, 0)
+            self.__voted_users[user_id] = value + 1
+
+            dict_key = get_variant_index(interaction)
             value = self.__vote_counter.setdefault(dict_key, 0)
             self.__vote_counter[dict_key] = value + 1
 
@@ -89,7 +103,7 @@ class Poll():
                 await interaction.send(content=f"You voted for the option: {get_variant(interaction)}")
                 """Increasing the number of votes
                 """
-                add_vote(get_variant_index(interaction))
+                add_vote(interaction)
 
                 # if self.__poll_message == None:
                 #     self.__poll_message =self.__get_message_by_id()
