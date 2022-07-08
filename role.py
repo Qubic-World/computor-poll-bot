@@ -2,7 +2,8 @@ import logging
 
 from discord import Client, Member
 
-from data.users import UserData
+from data.users import UserData, user_data
+from data.identity import identity_manager
 from utils.botutils import (get_member_by_id, get_role)
 from utils.message import is_valid_identity
 
@@ -34,6 +35,14 @@ class RoleManager():
             item for item in identity if is_valid_identity(item)]
         for id in valid_identity:
             user_id = self._user_data.get_user_id(id)
+            """If the user has other IDs that are computors, we do not remove the role
+            """
+            if set_role == False:
+                user_identity_set = user_data.user_identity(user_id)
+                for user_identity in user_identity_set:
+                    if user_identity in identity_manager.identity:
+                        continue
+
             if user_id != None:
                 member = get_member_by_id(self._bot, user_id)
                 if member != None:
