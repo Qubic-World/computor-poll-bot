@@ -1,22 +1,14 @@
 import asyncio
-from cProfile import label
-import os
-import sys
 from typing import Optional
 from uuid import UUID, uuid4
 
-from discord import Embed,  Client
+from checkers import has_role_on_member
+from commands.pool import pool_commands
+from discord import Client, Embed, Message
 from discord.ext import commands
 from discord.ext.commands import Context
 from discord_components import Button, ButtonStyle
-
-from utils.botutils import get_role_name
-
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.dirname(SCRIPT_DIR))
-
-from commands.pool import pool_commands
-from checkers import has_role_on_member
+from utils.botutils import get_channel_id, get_role_name
 
 DESCRIPTION_FIELD = "description"
 VARIANTS_FIELD = "variants"
@@ -33,40 +25,89 @@ BUTTON_CLICK_EVENT_NAME = "button_click"
 class Poll():
     """Responsible for counting votes, serialization, deserialization of the poll
     """
+
     def __init__(self, bot: Client, ctx: Context, description: str, variants: list) -> None:
         self.__bot = bot
         self.__ctx = ctx
         self.__description = description
         self.__variants = variants
-        self.__id:UUID = uuid4()
+        self.__id: UUID = uuid4()
         self.__poll_message_id: Optional[int] = None
+        self.__poll_message: Optional[Message] = None
         self.__done_callback = set()
         self.__components = []
         self.__background_tasks = []
+        self.__vote_counter = dict()
 
     async def __listen_buttons(self):
-        custom_id_list = [component.custom_id for component in self.__components]
+        custom_id_list = [
+            component.custom_id for component in self.__components]
 
         def check_role(member):
+            """Only people with a role can click the buttons
+            """
             return get_role_name() in [role.name for role in member.roles]
 
         def check_button(custom_id: str):
+            """Process only those buttons that relate to this poll
+            """
             return custom_id in custom_id_list
 
         def check(interaction):
             return check_role(interaction.user) and check_button(interaction.custom_id)
 
+        def get_variant_index(interaction):
+            """Get the variant number from the button pressed
+            """
+            return custom_id_list.index(interaction.custom_id)
+
         def get_variant(interaction):
-            index = custom_id_list.index(interaction.custom_id)
-            return self.__variants[index]
+            """Get variant on the button pressed
+            """
+            return self.__variants[get_variant_index(interaction)]
+
+        def add_vote(variant_index: int):
+            """Increasing the number of votes
+            """
+            dict_key = variant_index
+            value = self.__vote_counter.setdefault(dict_key, 0)
+            self.__vote_counter[dict_key] = value + 1
+
+        def pretty_vote_count():
+            list_vote = []
+            for key, value in self.__vote_counter.items():
+                list_vote.append(f"{key + 1}: {value}")
+
+            return ", ".join(list_vote)
 
         while True:
             try:
-                interaction  = await self.__bot.wait_for(BUTTON_CLICK_EVENT_NAME, check=check)
+                """Waiting for the button to be clicked
+                """
+                interaction = await self.__bot.wait_for(BUTTON_CLICK_EVENT_NAME, check=check)
 
                 await interaction.send(content=f"You voted for the option: {get_variant(interaction)}")
+                """Increasing the number of votes
+                """
+                add_vote(get_variant_index(interaction))
+
+                # if self.__poll_message == None:
+                #     self.__poll_message =self.__get_message_by_id()
+                #     if self.__poll_message == None:
+                #         raise ValueError("Failed to retrieve ID message")
+
+                """Outputting the number of votes
+                """
+                embed: Embed = self.__poll_message.embeds[0]
+                embed.set_footer(text=f'Vote count:\n {pretty_vote_count()}')
+                await self.__poll_message.edit(embed=embed)
+
             except asyncio.CancelledError:
                 pass
+
+    async def __get_message_by_id(self) -> Message:
+        channel = self.__bot.get_channel(get_channel_id())
+        return await channel.fetch_message(self.__poll_message_id)
 
     async def create(self):
         embed = Embed(title="Poll", description=self.__description)
@@ -77,23 +118,21 @@ class Poll():
             [f"{VARIANT_NUMBERS[idx]} {self.__variants[idx]}" for idx in range(0, variant_len)])
         embed.add_field(name="Variants:", value=value, inline=False)
         self.__components = [Button(style=ButtonStyle.grey, label=str(idx + 1), custom_id=f"button{idx}_{self.__id}")
-                      for idx in range(0, variant_len)]
+                             for idx in range(0, variant_len)]
 
         message = await self.__ctx.reply(embed=embed, components=[self.__components])
         self.__poll_message_id = message.id
+        self.__poll_message = message
 
         task = asyncio.create_task(self.__listen_buttons())
         self.__background_tasks.append(task)
         task.add_done_callback(self.__background_tasks.remove)
-        
 
     async def done(self):
         await asyncio.wait([asyncio.create_task(callback(self)) for callback in self.__done_callback])
 
     def add_done_callback(self, function):
         self.__done_callback.add(function)
-
-
 
 
 class PollCog(commands.Cog):
@@ -123,7 +162,6 @@ class PollCog(commands.Cog):
         if success == False:
             await ctx.reply(message)
             return
-
 
         poll = Poll(self.__bot, ctx, description, variants)
         self.__poll_list.append(poll)
