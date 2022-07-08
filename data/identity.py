@@ -1,5 +1,4 @@
 import asyncio
-from genericpath import exists
 import aiofiles
 import ast
 
@@ -29,6 +28,10 @@ class IdentityManager():
     async def stop(self):
         while len(self.background_task) > 0:
             asyncio.sleep(0.1)
+
+    @property
+    def identity(self) -> set:
+        return self._identity
 
     """
     Files

@@ -5,6 +5,7 @@ from inspect import iscoroutinefunction
 from typing import Optional
 
 
+
 class PoolCommands():
     def __init__(self) -> None:
         self.pool = Queue()
@@ -45,6 +46,9 @@ class PoolCommands():
 
     async def stop(self):
         await self.pool.join()
-        
+
         if self._task != None:
             self._task.cancel()
+
+
+pool_commands = PoolCommands()

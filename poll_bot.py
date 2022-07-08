@@ -4,12 +4,15 @@ from typing import Optional
 
 from discord import Intents
 from discord.ext import commands
+from discord_components import DiscordComponents
 from dotenv import load_dotenv
 
-from checkers import is_valid_channel, is_valid_role
-from commands.pool import PoolCommands
+
+from poll.pollmanager import PollCog
+from checkers import is_valid_channel, has_role_in_guild
+from commands.pool import pool_commands
 from data.identity import identity_manager
-from data.users import UserData
+from data.users import user_data
 from qubic.manager import QubicNetworkManager
 from qubic.qubicutils import load_cache_computors
 from role import RoleManager
@@ -24,11 +27,10 @@ intents = Intents.default()
 intents.members = True
 intents.messages = True
 poll_bot = commands.Bot(command_prefix="/", intents=intents)
+DiscordComponents(poll_bot)
 
 """Managers
 """
-pool_commands = PoolCommands()
-user_data = UserData()
 role_manager = RoleManager(user_data, poll_bot)
 
 
@@ -51,7 +53,7 @@ network_task: Optional[asyncio.Task] = None
 
 @poll_bot.command(name='register')
 @commands.check(is_valid_channel)
-@commands.check(is_valid_role)
+@commands.check(has_role_in_guild)
 async def _register(ctx, *, json):
     """User registration
     """
@@ -109,8 +111,13 @@ async def register(ctx: commands.Context, json):
 async def on_ready():
     print("On ready")
 
+    poll_cog = PollCog(poll_bot)
+    await poll_cog.load_from_cache()
+    poll_bot.add_cog(poll_cog)
+
+    # TODO: Enable
     # Starting qubic-netwrok
-    network_task = asyncio.create_task(network.start())
+    # network_task = asyncio.create_task(network.start())
 
 
 def main():
@@ -135,6 +142,9 @@ def main():
     identity_manager.observe_added(role_manager.add_role)
     identity_manager.observe_removed(role_manager.remove_role)
     user_data.observe_new_identities(identity_manager.on_new_identities)
+
+    poll_bot.add_check(is_valid_channel)
+    poll_bot.add_check(has_role_in_guild)
 
     try:
         # Running pool of commands
