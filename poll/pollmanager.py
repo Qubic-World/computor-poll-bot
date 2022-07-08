@@ -111,7 +111,6 @@ class Poll():
 
     async def create(self):
         embed = Embed(title="Poll", description=self.__description)
-        embed.set_footer(text=f"ID: {str(self.__id.hex)}")
 
         variant_len = len(self.__variants)
         value = "\n".join(
@@ -129,7 +128,25 @@ class Poll():
         task.add_done_callback(self.__background_tasks.remove)
 
     async def done(self):
-        await asyncio.wait([asyncio.create_task(callback(self)) for callback in self.__done_callback])
+        """Completing the poll
+        """
+
+        """Removing the voting buttons
+        """
+        await self.__poll_message.edit(components=[])
+
+        """Notify listeners that the poll has been completed
+        """
+        if len(self.__done_callback) > 0:
+            coroutine_list = []
+            for callback in self.__done_callback:
+                if asyncio.iscoroutinefunction(callback):
+                    coroutine_list.append(asyncio.create_task(callable(self)))
+                else:
+                    callable(self)
+
+            if len(coroutine_list) > 0:
+                await asyncio.wait(coroutine_list)
 
     def add_done_callback(self, function):
         self.__done_callback.add(function)
