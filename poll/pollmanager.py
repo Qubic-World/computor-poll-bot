@@ -1,7 +1,10 @@
+import asyncio
 import os
 import sys
+from typing import Optional
+from uuid import UUID, uuid4
 
-from discord import Embed
+from discord import Embed,  Client
 from discord.ext import commands
 from discord.ext.commands import Context
 from discord_components import Button, ButtonStyle
@@ -19,22 +22,65 @@ FIELDS = [DESCRIPTION_FIELD, VARIANTS_FIELD]
 
 VARIANT_NUMBERS = ['1⃣', '2⃣', '3⃣', '4⃣', '5⃣', '6⃣', '7⃣', '8⃣', '9⃣', '🔟']
 
+MINIMUM_NUMBER_OF_VARIANTS = 1
+MAXIMUM_NUMBER_OF_VARIANTS = 5
+
 
 class Poll():
     """Responsible for counting votes, serialization, deserialization of the poll
     """
-    pass
+    def __init__(self, bot: Client, ctx: Context, description: str, variants: list) -> None:
+        self.__bot = bot
+        self.__ctx = ctx
+        self.__description = description
+        self.__variants = variants
+        self.__id:UUID = uuid4()
+        self.__poll_message_id: Optional[int] = None
+        self.__done_callback = set()
+        self.__components = []
+        self.__background_tasks = []
+
+    async def __listen_buttons(self):
+        pass
+
+    async def create(self):
+        embed = Embed(title="Poll", description=self.__description)
+        embed.set_footer(text=f"ID: {str(self.__id.hex)}")
+
+        variant_len = len(self.__variants)
+        value = "\n".join(
+            [f"{VARIANT_NUMBERS[idx]} {self.__variants[idx]}" for idx in range(0, variant_len)])
+        embed.add_field(name="Variants:", value=value, inline=False)
+        self.__components = [Button(style=ButtonStyle.grey, label=str(idx + 1), custom_id=f"button{idx}_{self.__id}")
+                      for idx in range(0, variant_len)]
+
+        message = await self.__ctx.reply(embed=embed, components=[self.__components])
+        self.__poll_message_id = message.id
+
+        task = asyncio.create_task(self.__listen_buttons())
+        self.__background_tasks.append(task)
+        task.add_done_callback(self.__background_tasks.remove)
+        
+
+    async def done(self):
+        await asyncio.wait([asyncio.create_task(callback(self)) for callback in self.__done_callback])
+
+    def add_done_callback(self, function):
+        self.__done_callback.add(function)
+
+
 
 
 class PollCog(commands.Cog):
     def __init__(self, bot) -> None:
         self.__bot = bot
+        self.__poll_list = []
 
     def _is_valid_message(self, description: str, *variants: str):
-        if len(variants) <= 0 or len(variants) > 10:
-            return False, "The number of variants should be from 1 to 10"
+        if len(variants) >= MINIMUM_NUMBER_OF_VARIANTS and len(variants) <= MAXIMUM_NUMBER_OF_VARIANTS:
+            return True, ""
 
-        return True, ""
+        return False, f"The number of variants should be from {MINIMUM_NUMBER_OF_VARIANTS} to {MAXIMUM_NUMBER_OF_VARIANTS}"
 
     def get_description(self, json_body: dict):
         return json_body[DESCRIPTION_FIELD]
@@ -53,7 +99,12 @@ class PollCog(commands.Cog):
             await ctx.reply(message)
             return
 
-        # TODO: Move the logic to Poll
+
+        poll = Poll(self.__bot, ctx, description, variants)
+        self.__poll_list.append(poll)
+        poll.add_done_callback(self.__poll_list.remove)
+        await poll.create()
+        return
 
         embed = Embed(title="Poll", description=description)
 
