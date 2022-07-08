@@ -14,6 +14,10 @@ class UserData():
         self._observers_new_identities = set()
         self.background_task = set()
 
+    def __get_user_data(self, user_id: int):
+        user_id_str = str(user_id)
+        return next(
+            (item for item in self._json_data[USER_DATA_FIELD] if user_id_str in item.keys()), None)
 
     def add_data(self, user_id: int, identity_list: list):
         # The user_id needs to be converted to string. After loading data from a file, the json key is converted from int to string
@@ -21,7 +25,8 @@ class UserData():
         found_id = next(
             (item for item in self._json_data[USER_DATA_FIELD] if user_id_str in item.keys()), False)
         if found_id == False:
-            self._json_data[USER_DATA_FIELD].append({user_id_str: identity_list})
+            self._json_data[USER_DATA_FIELD].append(
+                {user_id_str: identity_list})
             self.call_new_identities(set(identity_list))
             return (True, "User added")
         else:
@@ -31,7 +36,7 @@ class UserData():
                 if not id in list_data:
                     new_identities.append(id)
 
-            if len(new_identities) >0:
+            if len(new_identities) > 0:
                 found_id[user_id_str] = list(set(list_data + new_identities))
                 self.call_new_identities(set(new_identities))
                 return (True, "User added")
@@ -67,8 +72,18 @@ class UserData():
         loop = asyncio.get_event_loop()
         for observer in self._observers_new_identities:
             if asyncio.iscoroutinefunction(observer):
-                task =loop.create_task(observer(identities))
+                task = loop.create_task(observer(identities))
                 self.background_task.add(task)
                 task.add_done_callback(self.background_task.discard)
             else:
                 observer(identities)
+
+    def user_identity(self, user_id: int) -> set:
+        try:
+            iter = self.__get_user_data(user_id)
+            return set(iter[str(user_id)])
+        except:
+            return set()
+
+
+user_data = UserData()

@@ -29,6 +29,10 @@ class IdentityManager():
         while len(self.background_task) > 0:
             asyncio.sleep(0.1)
 
+    @property
+    def identity(self) -> set:
+        return self._identity
+
     """
     Files
     """

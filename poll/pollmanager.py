@@ -4,6 +4,8 @@ from uuid import UUID, uuid4
 
 from checkers import has_role_on_member
 from commands.pool import pool_commands
+from data.identity import identity_manager
+from data.users import user_data
 from discord import Client, Embed, Message
 from discord.ext import commands
 from discord.ext.commands import Context
@@ -60,8 +62,24 @@ class Poll():
             """
             return custom_id in custom_id_list
 
+        def has_unused_votes(user_id: int):
+            """Each user can vote as many times as their ID is in 676
+            """
+            identity_set = user_data.user_identity(user_id)
+            if len(identity_set) <= 0:
+                return
+
+            total_user_number_of_votes = len(
+                [id for id in identity_set if id in identity_manager.identity])
+            if total_user_number_of_votes <= 0:
+                return False
+
+            number_of_votes = self.__voted_users.setdefault(user_id, 0)
+            return total_user_number_of_votes > number_of_votes
+
         def check(interaction):
-            return check_role(interaction.user) and check_button(interaction.custom_id)
+            user = interaction.user
+            return check_role(user) and check_button(interaction.custom_id) and has_unused_votes(user.id)
 
         def get_variant_index(interaction):
             """Get the variant number from the button pressed
@@ -198,17 +216,6 @@ class PollCog(commands.Cog):
         self.__poll_list.append(poll)
         poll.add_done_callback(self.__poll_list.remove)
         await poll.create()
-        return
-
-        embed = Embed(title="Poll", description=description)
-
-        value = "\n".join(
-            [f"{VARIANT_NUMBERS[idx]} {variants[idx]}" for idx in range(0, len(variants))])
-        embed.add_field(name="Variants:", value=value, inline=False)
-        components = [Button(style=ButtonStyle.grey, label=str(idx + 1))
-                      for idx in range(0, len(variants))]
-
-        message = await ctx.reply(embed=embed, components=components)
 
 
 class PollManager():

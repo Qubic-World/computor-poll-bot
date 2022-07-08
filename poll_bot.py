@@ -9,10 +9,10 @@ from dotenv import load_dotenv
 
 
 from poll.pollmanager import PollCog
-from checkers import has_role_on_member, is_valid_channel, has_role_in_guild
+from checkers import is_valid_channel, has_role_in_guild
 from commands.pool import pool_commands
 from data.identity import identity_manager
-from data.users import UserData
+from data.users import user_data
 from qubic.manager import QubicNetworkManager
 from qubic.qubicutils import load_cache_computors
 from role import RoleManager
@@ -31,7 +31,6 @@ DiscordComponents(poll_bot)
 
 """Managers
 """
-user_data = UserData()
 role_manager = RoleManager(user_data, poll_bot)
 
 
