@@ -1,16 +1,16 @@
 import asyncio
-from http.client import HTTPException
 import json
+import logging
+import os
 from typing import Optional
 from uuid import UUID, uuid4
 
 import aiofiles
-
 from checkers import has_role_on_member
 from commands.pool import pool_commands
 from data.identity import identity_manager
 from data.users import user_data
-from discord import Client, Embed, Message
+from discord import Client, Embed, Message, errors
 from discord.ext import commands
 from discord.ext.commands import Context
 from discord_components import Button, ButtonStyle
@@ -18,13 +18,16 @@ from utils.botutils import get_channel_id, get_role_name
 
 DESCRIPTION_FIELD = "description"
 VARIANTS_FIELD = "variants"
-
 FIELDS = [DESCRIPTION_FIELD, VARIANTS_FIELD]
+POLL_FIELDS = ["id", "variants", "poll_message_id",
+               "vote_counter", "voted_users"]
 
 VARIANT_NUMBERS = ['1⃣', '2⃣', '3⃣', '4⃣', '5⃣', '6⃣', '7⃣', '8⃣', '9⃣', '🔟']
-
 MINIMUM_NUMBER_OF_VARIANTS = 1
 MAXIMUM_NUMBER_OF_VARIANTS = 5
+NUMBER_OF_VOTES_FOR_END = 451
+
+
 BUTTON_CLICK_EVENT_NAME = "button_click"
 
 
@@ -46,6 +49,7 @@ class Poll():
         self.__create_callback = set()
         self.__voted_callback = set()
         self.__components = []
+        self.__components_id = []
         self.__background_tasks = []
         """Number of votes for a specific vote
         """
@@ -58,17 +62,29 @@ class Poll():
     def message_id(self):
         return self.__poll_message_id
 
+    @property
+    def number_of_voters(self):
+        """Number of votes received
+        """
+        sum = 0
+        for value in self.__vote_counter.values():
+            sum = sum + value
+
+        return sum
+
     def as_dict(self):
-        return {"id": str(self.__id),
-                "variants": list(self.__variants),
-                "poll_message_id": self.__poll_message_id,
-                "vote_counter": str(self.__vote_counter),
-                "voted_users": str(self.__voted_users)}
+        return {POLL_FIELDS[0]: str(self.__id),
+                POLL_FIELDS[1]: list(self.__variants),
+                POLL_FIELDS[2]: self.__poll_message_id,
+                POLL_FIELDS[3]: str(self.__vote_counter),
+                POLL_FIELDS[4]: str(self.__voted_users)}
+
+    async def __start_listen_byttons(self):
+        task = asyncio.create_task(self.__listen_buttons())
+        self.__background_tasks.append(task)
+        task.add_done_callback(self.__background_tasks.remove)
 
     async def __listen_buttons(self):
-        custom_id_list = [
-            component.custom_id for component in self.__components]
-
         def check_role(member):
             """Only people with a role can click the buttons
             """
@@ -77,7 +93,7 @@ class Poll():
         def check_button(custom_id: str):
             """Process only those buttons that relate to this poll
             """
-            return custom_id in custom_id_list
+            return custom_id in self.__components_id
 
         def has_unused_votes(user_id: int):
             """Each user can vote as many times as their ID is in 676
@@ -101,7 +117,7 @@ class Poll():
         def get_variant_index(interaction):
             """Get the variant number from the button pressed
             """
-            return custom_id_list.index(interaction.custom_id)
+            return self.__components_id.index(interaction.custom_id)
 
         def get_variant(interaction):
             """Get variant on the button pressed
@@ -135,7 +151,10 @@ class Poll():
                 """
                 interaction = await self.__bot.wait_for(BUTTON_CLICK_EVENT_NAME, check=check)
 
-                await interaction.send(content=f"You voted for the option: {get_variant(interaction)}")
+                try:
+                    await interaction.send(content=f"You voted for the option: {get_variant(interaction)}")
+                except errors.NotFound as e:
+                    logging.warning(e)
                 """Increasing the number of votes
                 """
                 add_vote(interaction)
@@ -147,7 +166,9 @@ class Poll():
                 await self.__poll_message.edit(embed=embed)
 
                 await self.call_callback(self.__voted_callback)
-                # TODO: Check if 451 Voices has been collected
+
+                if self.number_of_voters == NUMBER_OF_VOTES_FOR_END:
+                    await self.done()
 
             except asyncio.CancelledError:
                 pass
@@ -166,15 +187,30 @@ class Poll():
         self.__components = [Button(style=ButtonStyle.grey, label=str(idx + 1), custom_id=f"button{idx}_{self.__id}")
                              for idx in range(0, variant_len)]
 
+        self.__components_id = [
+            component.custom_id for component in self.__components]
+
         message = await self.__ctx.reply(embed=embed, components=[self.__components])
         self.__poll_message_id = message.id
         self.__poll_message = message
 
-        task = asyncio.create_task(self.__listen_buttons())
-        self.__background_tasks.append(task)
-        task.add_done_callback(self.__background_tasks.remove)
+        await self.__start_listen_byttons()
 
         await self.call_callback(self.__create_callback)
+
+    async def create_from_dict(self, data: dict):
+        self.__id = UUID(data[POLL_FIELDS[0]])
+        self.__variants = data[POLL_FIELDS[1]]
+        self.__poll_message_id = int(data[POLL_FIELDS[2]])
+        self.__vote_counter = eval(data[POLL_FIELDS[3]])
+        self.__voted_users = eval(data[POLL_FIELDS[4]])
+
+        self.__components_id = [
+            f"button{idx}_{self.__id}" for idx in range(0, len(self.__variants))]
+
+        self.__poll_message = await self.__get_message_by_id()
+
+        await self.__start_listen_byttons()
 
     async def call_callback(self, functions, *args):
         if len(functions) > 0:
@@ -229,6 +265,30 @@ class PollCog(commands.Cog):
     def get_variants(self, json_body: dict):
         return list(json_body[VARIANTS_FIELD])
 
+    async def load_from_cache(self):
+        dict_list = []
+        if os.path.isfile(self.__cache_file):
+            async with aiofiles.open(self.__cache_file, "r") as f:
+                dict_list = list(eval(json.loads(await f.read())))
+
+        if len(dict_list) <= 0:
+            return
+
+        for data in dict_list:
+            poll = Poll(self.__bot, None, "", "")
+            try:
+                await poll.create_from_dict(data)
+            except:
+                pass
+
+            self.__poll_list.append(poll)
+            self.init_callback(poll)
+
+    def init_callback(self, poll: Poll):
+        poll.add_done_callback(self.__on_done)
+        poll.add_crete_callback(self.__on_cache_polls)
+        poll.add_voted_callback(self.__on_cache_polls)
+
     @commands.check(has_role_on_member)
     @commands.command(name="poll")
     async def poll_command(self, ctx: Context, description, *variants):
@@ -243,9 +303,7 @@ class PollCog(commands.Cog):
         poll = Poll(self.__bot, ctx, description, variants)
         self.__poll_list.append(poll)
         # TODO: When the poll is complete, delete it from the file
-        poll.add_done_callback(self.__poll_list.remove)
-        poll.add_crete_callback(self.__on_cache_polls)
-        poll.add_voted_callback(self.__on_cache_polls)
+        self.init_callback(poll)
         await poll.create()
 
     async def __on_cache_polls(self, poll: Poll):
@@ -255,6 +313,14 @@ class PollCog(commands.Cog):
 
         async with aiofiles.open(self.__cache_file, "w") as f:
             await f.write(json.dumps(str(dict_list)))
+
+    async def __on_done(self, poll: Poll):
+        try:
+            self.__poll_list.remove(poll)
+        except ValueError:
+            pass
+
+        await self.__on_cache_polls(None)
 
     @commands.Cog.listener()
     async def on_message_delete(self, message):
@@ -266,7 +332,6 @@ class PollCog(commands.Cog):
 
         if removed:
             await self.__on_cache_polls(None)
-
 
 
 class PollManager():

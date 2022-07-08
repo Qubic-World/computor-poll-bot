@@ -111,6 +111,10 @@ async def register(ctx: commands.Context, json):
 async def on_ready():
     print("On ready")
 
+    poll_cog = PollCog(poll_bot)
+    await poll_cog.load_from_cache()
+    poll_bot.add_cog(poll_cog)
+
     # TODO: Enable
     # Starting qubic-netwrok
     # network_task = asyncio.create_task(network.start())
@@ -139,7 +143,6 @@ def main():
     identity_manager.observe_removed(role_manager.remove_role)
     user_data.observe_new_identities(identity_manager.on_new_identities)
 
-    poll_bot.add_cog(PollCog(poll_bot))
     poll_bot.add_check(is_valid_channel)
     poll_bot.add_check(has_role_in_guild)
 
