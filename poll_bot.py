@@ -27,7 +27,7 @@ intents = Intents.default()
 intents.members = True
 intents.messages = True
 poll_bot = commands.Bot(command_prefix="/", intents=intents)
-# DiscordComponents(poll_bot)
+DiscordComponents(poll_bot)
 
 """Managers
 """
@@ -112,6 +112,7 @@ async def register(ctx: commands.Context, json):
 async def on_ready():
     print("On ready")
 
+    # TODO: Enable
     # Starting qubic-netwrok
     # network_task = asyncio.create_task(network.start())
 

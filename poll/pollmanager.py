@@ -1,4 +1,5 @@
 import asyncio
+from cProfile import label
 import os
 import sys
 from typing import Optional
@@ -8,6 +9,8 @@ from discord import Embed,  Client
 from discord.ext import commands
 from discord.ext.commands import Context
 from discord_components import Button, ButtonStyle
+
+from utils.botutils import get_role_name
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
@@ -24,6 +27,7 @@ VARIANT_NUMBERS = ['1⃣', '2⃣', '3⃣', '4⃣', '5⃣', '6⃣', '7⃣', '8⃣
 
 MINIMUM_NUMBER_OF_VARIANTS = 1
 MAXIMUM_NUMBER_OF_VARIANTS = 5
+BUTTON_CLICK_EVENT_NAME = "button_click"
 
 
 class Poll():
@@ -41,7 +45,28 @@ class Poll():
         self.__background_tasks = []
 
     async def __listen_buttons(self):
-        pass
+        custom_id_list = [component.custom_id for component in self.__components]
+
+        def check_role(member):
+            return get_role_name() in [role.name for role in member.roles]
+
+        def check_button(custom_id: str):
+            return custom_id in custom_id_list
+
+        def check(interaction):
+            return check_role(interaction.user) and check_button(interaction.custom_id)
+
+        def get_variant(interaction):
+            index = custom_id_list.index(interaction.custom_id)
+            return self.__variants[index]
+
+        while True:
+            try:
+                interaction  = await self.__bot.wait_for(BUTTON_CLICK_EVENT_NAME, check=check)
+
+                await interaction.send(content=f"You voted for the option: {get_variant(interaction)}")
+            except asyncio.CancelledError:
+                pass
 
     async def create(self):
         embed = Embed(title="Poll", description=self.__description)
