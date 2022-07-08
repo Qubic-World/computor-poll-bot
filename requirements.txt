@@ -4,9 +4,11 @@ async-timeout==3.0.1
 attrs==21.4.0
 autopep8==1.6.0
 chardet==4.0.0
+discord-components==2.1.2
 discord.py==1.7.3
 idna==3.3
 multidict==6.0.2
+py-cord==1.7.3
 pycodestyle==2.8.0
 python-dateutil==2.8.2
 python-dotenv==0.20.0
