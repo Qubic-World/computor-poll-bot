@@ -1,9 +1,9 @@
 
-from asyncio import Queue, Task
 import asyncio
+import logging
+from asyncio import Queue, Task
 from inspect import iscoroutinefunction
 from typing import Optional
-
 
 
 class PoolCommands():
@@ -31,11 +31,13 @@ class PoolCommands():
                 else:
                     func(*args, **kwargs)
 
-            finally:
-                try:
-                    self.pool.task_done()
-                except ValueError:
-                    pass
+            except Exception as e:
+                logging.error(e)
+
+            try:
+                self.pool.task_done()
+            except ValueError:
+                pass
 
     def __len__(self):
         return self.pool.qsize()
