@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 
 
 from poll.pollmanager import PollCog
-from checkers import is_valid_channel, has_role_in_guild
+from checkers import is_bot_channel, has_role_in_guild, is_bot_guild
 from commands.pool import pool_commands
 from data.identity import identity_manager
 from data.users import user_data
@@ -52,8 +52,7 @@ network_task: Optional[asyncio.Task] = None
 
 
 @poll_bot.command(name='register')
-@commands.check(is_valid_channel)
-@commands.check(has_role_in_guild)
+@commands.check(is_bot_channel)
 async def _register(ctx, *, json):
     """User registration
     """
@@ -61,8 +60,6 @@ async def _register(ctx, *, json):
     await pool_commands.add_command(register, ctx, json)
 
 # Executing from pool
-
-
 async def register(ctx: commands.Context, json):
     """User registration
     """
@@ -142,7 +139,7 @@ def main():
     identity_manager.observe_removed(role_manager.remove_role)
     user_data.observe_new_identities(identity_manager.on_new_identities)
 
-    poll_bot.add_check(is_valid_channel)
+    poll_bot.add_check(is_bot_guild)
     poll_bot.add_check(has_role_in_guild)
 
     try:

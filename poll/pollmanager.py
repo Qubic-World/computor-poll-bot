@@ -7,7 +7,7 @@ from typing import Optional
 from uuid import UUID, uuid4
 
 import aiofiles
-from checkers import has_role_on_member
+from checkers import has_role_on_member, is_poll_channel
 from commands.pool import pool_commands
 from data.identity import identity_manager
 from data.users import user_data
@@ -287,6 +287,7 @@ class PollCog(commands.Cog):
         poll.add_voted_callback(self.__on_cache_polls)
 
     @commands.check(has_role_on_member)
+    @commands.check(is_poll_channel)
     @commands.command(name="poll")
     async def poll_command(self, ctx: Context, description, *variants):
         await pool_commands.add_command(self._on_poll, ctx, description, *variants)

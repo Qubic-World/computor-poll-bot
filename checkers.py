@@ -1,10 +1,18 @@
 
-from utils.botutils import get_channel_id, get_role, get_role_by_context, get_role_name
-from discord.ext import commands
+from utils.botutils import (get_channel_id, get_guild_id, get_poll_channel_id,
+                            get_role_by_context, get_role_name)
 
 
-async def is_valid_channel(ctx):
+async def is_bot_channel(ctx):
     return ctx.message.channel.id == get_channel_id()
+
+
+async def is_bot_guild(ctx):
+    return ctx.message.guild.id == get_guild_id()
+
+
+async def is_poll_channel(ctx):
+    return ctx.message.channel.id == get_poll_channel_id()
 
 
 async def has_role_in_guild(ctx):
