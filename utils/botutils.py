@@ -1,7 +1,6 @@
 
 import logging
-from ssl import MemoryBIO
-from discord import Client, Member
+from discord import Client, Member, Message
 from discord.utils import get
 from discord.ext import commands
 from os import getenv
@@ -52,3 +51,8 @@ def get_username_with_discr(member: Member) -> str:
     """Returns username#4444
     """
     return str(member.name + '#' + member.discriminator)
+
+
+async def get_message_by_id(bot: Client, message_id:int) -> Message:
+    channel = bot.get_channel(get_channel_id())
+    return await channel.fetch_message(message_id)

@@ -1,4 +1,5 @@
 import asyncio
+from asyncio import tasks
 import json
 import logging
 import os
@@ -14,7 +15,7 @@ from discord import Client, Embed, Message, errors
 from discord.ext import commands
 from discord.ext.commands import Context
 from discord_components import Button, ButtonStyle
-from utils.botutils import get_channel_id, get_role_name
+from utils.botutils import get_channel_id, get_role_name, get_message_by_id
 
 DESCRIPTION_FIELD = "description"
 VARIANTS_FIELD = "variants"
@@ -95,20 +96,19 @@ class Poll():
             """
             return custom_id in self.__components_id
 
+        def get_total_user_votes(user_id: int):
+            identity_set = user_data.user_identity(user_id)
+            if len(identity_set) <= 0:
+                return 0
+
+            return len([id for id in identity_set if id in identity_manager.identity])
+
         def has_unused_votes(user_id: int):
             """Each user can vote as many times as their ID is in 676
             """
-            identity_set = user_data.user_identity(user_id)
-            if len(identity_set) <= 0:
-                return
-
-            total_user_number_of_votes = len(
-                [id for id in identity_set if id in identity_manager.identity])
-            if total_user_number_of_votes <= 0:
-                return False
 
             number_of_votes = self.__voted_users.setdefault(user_id, 0)
-            return total_user_number_of_votes > number_of_votes
+            return get_total_user_votes(user_id) > number_of_votes
 
         def check(interaction):
             user = interaction.user
@@ -132,11 +132,12 @@ class Poll():
             """
             user_id = interaction.user.id
             value = self.__voted_users.setdefault(user_id, 0)
-            self.__voted_users[user_id] = value + 1
+            delta_value = get_total_user_votes(user_id) - value
+            self.__voted_users[user_id] = value + delta_value
 
             dict_key = get_variant_index(interaction)
             value = self.__vote_counter.setdefault(dict_key, 0)
-            self.__vote_counter[dict_key] = value + 1
+            self.__vote_counter[dict_key] = value + delta_value
 
         def pretty_vote_count():
             list_vote = []
@@ -173,10 +174,6 @@ class Poll():
             except asyncio.CancelledError:
                 pass
 
-    async def __get_message_by_id(self) -> Message:
-        channel = self.__bot.get_channel(get_channel_id())
-        return await channel.fetch_message(self.__poll_message_id)
-
     async def create(self):
         embed = Embed(title="Poll", description=self.__description)
 
@@ -208,7 +205,7 @@ class Poll():
         self.__components_id = [
             f"button{idx}_{self.__id}" for idx in range(0, len(self.__variants))]
 
-        self.__poll_message = await self.__get_message_by_id()
+        self.__poll_message = await get_message_by_id(self.__bot, self.__poll_message_id)
 
         await self.__start_listen_byttons()
 
@@ -249,7 +246,7 @@ class Poll():
 
 class PollCog(commands.Cog):
     def __init__(self, bot) -> None:
-        self.__bot = bot
+        self.__bot: Client = bot
         self.__poll_list = []
         self.__cache_file = r"./data_files/poll_cache.data"
 
@@ -302,14 +299,35 @@ class PollCog(commands.Cog):
 
         poll = Poll(self.__bot, ctx, description, variants)
         self.__poll_list.append(poll)
-        
+
         self.init_callback(poll)
         await poll.create()
 
     async def __on_cache_polls(self, poll: Poll):
-        dict_list = []
+        async def is_exists_message(message_id: int)->bool:
+            try:
+                message:Message = await get_message_by_id(self.__bot, message_id)
+            except:
+                return False
+
+            return True
+
+
+        """Search for old messages and delete them
+        """
+        tasks = []
         for item in self.__poll_list:
-            dict_list.append(item.as_dict())
+            tasks.append(asyncio.create_task(is_exists_message(item.message_id)))
+
+        dict_list = []
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for idx in reversed(range(len(results))):
+            result = results[idx]
+            poll_item = self.__poll_list[idx]
+            if type(result) is Exception or result == False:
+                self.__poll_list.remove(poll_item)
+            else:
+                dict_list.append(poll_item.as_dict())
 
         async with aiofiles.open(self.__cache_file, "w") as f:
             await f.write(json.dumps(str(dict_list)))
