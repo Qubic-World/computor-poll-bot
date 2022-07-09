@@ -4,16 +4,16 @@ import logging
 from ctypes import sizeof
 from os import getenv
 from random import shuffle
-from token import EXACT_TOKEN_TYPES
 from typing import Optional
 
-
-from qubic.qubicdata import (BROADCAST_COMPUTORS, EXCHANGE_PUBLIC_PEERS, Computors,
-                       ExchangePublicPeers, ConnectionState, RequestResponseHeader)
-from qubic.qubicutils import (exchange_public_peers_to_list, get_header_from_bytes,
-                        get_protocol_version, get_raw_payload,
-                        is_valid_broadcast_computors, is_valid_header,
-                        is_valid_ip, apply_computors_data)
+from qubic.qubicdata import (BROADCAST_COMPUTORS, EXCHANGE_PUBLIC_PEERS,
+                             Computors, ConnectionState, ExchangePublicPeers,
+                             RequestResponseHeader)
+from qubic.qubicutils import (apply_computors_data,
+                              exchange_public_peers_to_list,
+                              get_header_from_bytes, get_protocol_version,
+                              get_raw_payload, is_valid_broadcast_computors,
+                              is_valid_header, is_valid_ip)
 
 
 class QubicNetworkManager():
@@ -219,6 +219,7 @@ class Peer():
         task.add_done_callback(self.__background_tasks.remove)
 
         raw_data = await asyncio.wait_for(task, self.read_timeout)
+
         if len(raw_data) != size:
             raise ConnectionError(f"Unable to read the data ({len(raw_data)}")
 
@@ -276,7 +277,8 @@ class Peer():
 
         # Reading Header
         try:
-            task = asyncio.create_task(self.__read_data(sizeof(RequestResponseHeader)))
+            task = asyncio.create_task(
+                self.__read_data(sizeof(RequestResponseHeader)))
             self.__background_tasks.append(task)
             task.add_done_callback(self.__background_tasks.remove)
             raw_header = await asyncio.wait_for(task, self.read_timeout)
