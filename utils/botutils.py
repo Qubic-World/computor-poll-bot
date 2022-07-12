@@ -66,6 +66,6 @@ def get_username_with_discr(member: Member) -> str:
     return str(member.name + '#' + member.discriminator)
 
 
-async def get_message_by_id(bot: Client, message_id: int) -> Message:
-    channel = bot.get_channel(get_channel_id())
+async def get_poll_message_by_id(bot: Client, message_id: int) -> Message:
+    channel = bot.get_channel(get_poll_channel_id())
     return await channel.fetch_message(message_id)

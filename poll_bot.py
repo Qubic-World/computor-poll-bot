@@ -6,21 +6,16 @@ from discord import Intents
 from discord.ext import commands
 from discord_components import DiscordComponents
 from dotenv import load_dotenv
-from commands.register import RegisterCog
 
-
-from poll.pollmanager import PollCog
-from checkers import is_bot_channel, has_role_in_guild, is_bot_guild
+from checkers import has_role_in_guild, is_bot_guild
 from commands.pool import pool_commands
+from commands.register import RegisterCog
 from data.identity import identity_manager
 from data.users import user_data
+from poll.pollmanager import PollCog
 from qubic.manager import QubicNetworkManager
 from qubic.qubicutils import load_cache_computors
 from role import RoleManager
-from utils.botutils import get_username_with_discr
-from utils.message import (get_identity_list, get_username_from_message,
-                           is_valid_message)
-from verify.user import get_member_by_username, get_user_id_from_username
 
 """Commands Bot
 """
@@ -51,6 +46,7 @@ network_task: Optional[asyncio.Task] = None
 """Commands
 """
 
+
 @poll_bot.event
 async def on_ready():
     print("On ready")
@@ -60,7 +56,6 @@ async def on_ready():
     await poll_cog.load_from_cache()
     poll_bot.add_cog(poll_cog)
     poll_bot.add_cog(register_cog)
-
 
     # Starting qubic-netwrok
     network_task = asyncio.create_task(network.start())
@@ -89,7 +84,8 @@ def main():
     identity_manager.observe_removed(role_manager.remove_role)
     # TODO: move identity_manager.on_new_identities to role_manager
     user_data.add_new_identities_callback(identity_manager.on_new_identities)
-    user_data.add_removed_identities_callback(role_manager.removed_identities_from_user)
+    user_data.add_removed_identities_callback(
+        role_manager.removed_identities_from_user)
 
     poll_bot.add_check(is_bot_guild)
     poll_bot.add_check(has_role_in_guild)

@@ -1,5 +1,4 @@
 import asyncio
-from asyncio import tasks
 import json
 import logging
 import os
@@ -7,7 +6,7 @@ from typing import Optional
 from uuid import UUID, uuid4
 
 import aiofiles
-from checkers import has_role_on_member, is_poll_channel
+from checkers import has_role_on_member, is_bot_channel, is_poll_channel
 from commands.pool import pool_commands
 from data.identity import identity_manager
 from data.users import user_data
@@ -15,7 +14,8 @@ from discord import Client, Embed, Message, errors
 from discord.ext import commands
 from discord.ext.commands import Context
 from discord_components import Button, ButtonStyle
-from utils.botutils import get_channel_id, get_role_name, get_message_by_id
+from utils.botutils import (get_poll_channel_id, get_poll_message_by_id,
+                            get_role_name)
 
 DESCRIPTION_FIELD = "description"
 VARIANTS_FIELD = "variants"
@@ -41,6 +41,10 @@ class Poll():
         self.__ctx = ctx
         self.__description = description
         self.__variants = variants
+        self.__poll_channel = bot.get_channel(get_poll_channel_id())
+        if self.__poll_channel == None:
+            raise ValueError("__poll_channel is None")
+
         """Poll ID
         """
         self.__id: UUID = uuid4()
@@ -187,7 +191,8 @@ class Poll():
         self.__components_id = [
             component.custom_id for component in self.__components]
 
-        message = await self.__ctx.reply(embed=embed, components=[self.__components])
+        await self.__ctx.reply("Success", delete_after=10)
+        message = await self.__poll_channel.send(embed=embed, components=[self.__components])
         self.__poll_message_id = message.id
         self.__poll_message = message
 
@@ -205,7 +210,7 @@ class Poll():
         self.__components_id = [
             f"button{idx}_{self.__id}" for idx in range(0, len(self.__variants))]
 
-        self.__poll_message = await get_message_by_id(self.__bot, self.__poll_message_id)
+        self.__poll_message = await get_poll_message_by_id(self.__bot, self.__poll_message_id)
 
         await self.__start_listen_byttons()
 
@@ -287,7 +292,7 @@ class PollCog(commands.Cog):
         poll.add_voted_callback(self.__on_cache_polls)
 
     @commands.check(has_role_on_member)
-    @commands.check(is_poll_channel)
+    @commands.check(is_bot_channel)
     @commands.command(name="poll")
     async def poll_command(self, ctx: Context, description, *variants):
         await pool_commands.add_command(self._on_poll, ctx, description, *variants)
@@ -305,20 +310,20 @@ class PollCog(commands.Cog):
         await poll.create()
 
     async def __on_cache_polls(self, poll: Poll):
-        async def is_exists_message(message_id: int)->bool:
+        async def is_exists_message(message_id: int) -> bool:
             try:
-                message:Message = await get_message_by_id(self.__bot, message_id)
+                message: Message = await get_poll_message_by_id(self.__bot, message_id)
             except:
                 return False
 
             return True
 
-
         """Search for old messages and delete them
         """
         tasks = []
         for item in self.__poll_list:
-            tasks.append(asyncio.create_task(is_exists_message(item.message_id)))
+            tasks.append(asyncio.create_task(
+                is_exists_message(item.message_id)))
 
         dict_list = []
         results = await asyncio.gather(*tasks, return_exceptions=True)
