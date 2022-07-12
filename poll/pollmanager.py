@@ -97,7 +97,7 @@ class Poll():
             return custom_id in self.__components_id
 
         def get_total_user_votes(user_id: int):
-            identity_set = user_data.user_identity(user_id)
+            identity_set = user_data.get_user_identities(user_id)
             if len(identity_set) <= 0:
                 return 0
 

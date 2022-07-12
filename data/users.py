@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 
 import aiofiles
 
@@ -8,82 +9,114 @@ USER_DATA_FIELD = "user_data"
 
 class UserData():
     def __init__(self) -> None:
-        self._json_data = dict()
+        self._user_data = dict()
         self.reset()
         self._json_file_name = "./data_files/userdata.json"
-        self._observers_new_identities = set()
+        self._new_identities_callbacks = set()
+        self.__removed_identities_callback = set()
         self.background_task = set()
 
     def __get_user_data(self, user_id: int):
+        # The user_id needs to be converted to string. After loading data from a file, the json key is converted from int to string
         user_id_str = str(user_id)
         return next(
-            (item for item in self._json_data[USER_DATA_FIELD] if user_id_str in item.keys()), None)
+            (item for item in self._user_data[USER_DATA_FIELD] if user_id_str in item.keys()), None)
+
+    def _get_user_data(self, user_id: int):
+        return self.__get_user_data(user_id)
 
     def add_data(self, user_id: int, identity_list: list):
         # The user_id needs to be converted to string. After loading data from a file, the json key is converted from int to string
         user_id_str = str(user_id)
-        found_id = next(
-            (item for item in self._json_data[USER_DATA_FIELD] if user_id_str in item.keys()), False)
-        if found_id == False:
-            self._json_data[USER_DATA_FIELD].append(
+        found_data = self.__get_user_data(user_id)
+        if found_data == None:
+            self._user_data[USER_DATA_FIELD].append(
                 {user_id_str: identity_list})
             self.call_new_identities(set(identity_list))
             return (True, "User added")
         else:
-            list_data = found_id[user_id_str]
+            list_data = found_data[user_id_str]
             new_identities = []
             for id in identity_list:
                 if not id in list_data:
                     new_identities.append(id)
 
             if len(new_identities) > 0:
-                found_id[user_id_str] = list(set(list_data + new_identities))
+                found_data[user_id_str] = list(set(list_data + new_identities))
                 self.call_new_identities(set(new_identities))
                 return (True, "User added")
 
         return (False, "The user is already associated with this ID")
 
+    async def delete_identities(self, user_id: int, identities_for_remove: set):
+        data: dict = self.__get_user_data(user_id)
+        if data == None:
+            logging.warning(
+                "UserData.delete_identities: user with id {user_id} is not found")
+            return
+
+        user_identities = set(data[str(user_id)])
+        unfound: set = identities_for_remove - user_identities
+        will_deleted: set = identities_for_remove - unfound
+        if len(will_deleted) > 0:
+            data.update({str(user_id): list(user_identities - will_deleted)})
+            await self.__call_removed_identities(will_deleted)
+
     def get_user_id(self, identity: str) -> int:
-        for user_data in self._json_data[USER_DATA_FIELD]:
+        for user_data in self._user_data[USER_DATA_FIELD]:
             if identity in next(iter(user_data.values())):
                 return int(next(iter(user_data.keys())))
 
         return None
 
     def reset(self):
-        self._json_data.clear()
-        self._json_data = {USER_DATA_FIELD: []}
+        self._user_data.clear()
+        self._user_data = {USER_DATA_FIELD: []}
 
     async def save_to_file(self):
         async with aiofiles.open(self._json_file_name, "w") as file:
-            await file.write(json.dumps(self._json_data, indent=4))
+            await file.write(json.dumps(self._user_data, indent=4))
 
     async def load_from_file(self):
         try:
             async with aiofiles.open(self._json_file_name, "r") as file:
-                self._json_data = json.loads(await file.read())
+                self._user_data = json.loads(await file.read())
         except FileNotFoundError:
             self.reset()
 
-    def observe_new_identities(self, function):
-        self._observers_new_identities.add(function)
+    def add_new_identities_callback(self, function):
+        self._new_identities_callbacks.add(function)
+
+    def add_removed_identities_callback(self, function):
+        self.__removed_identities_callback.add(function)
+
+    async def __call_callback(self, callback, *args):
+        if asyncio.iscoroutinefunction(callback):
+            await callback(*args)
+        else:
+            callback(*args)
 
     def call_new_identities(self, identities: set):
         loop = asyncio.get_event_loop()
-        for observer in self._observers_new_identities:
-            if asyncio.iscoroutinefunction(observer):
-                task = loop.create_task(observer(identities))
+        for callback in self._new_identities_callbacks:
+            if asyncio.iscoroutinefunction(callback):
+                task = loop.create_task(callback(identities))
                 self.background_task.add(task)
                 task.add_done_callback(self.background_task.discard)
             else:
-                observer(identities)
+                callback(identities)
 
-    def user_identity(self, user_id: int) -> set:
+    async def __call_removed_identities(self, identities: set):
+        for callback in self.__removed_identities_callback:
+            await self.__call_callback(callback, identities)
+
+    def get_user_identities(self, user_id: int) -> set:
         try:
-            iter = self.__get_user_data(user_id)
-            return set(iter[str(user_id)])
+            user_data = self.__get_user_data(user_id)
+            return set(user_data[str(user_id)])
         except:
             return set()
 
 
 user_data = UserData()
+
