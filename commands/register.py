@@ -65,13 +65,13 @@ class RegisterCog(commands.Cog):
         if unregister == False:
             result = user_data.add_data(user_id, get_identity_list(json))
         else:
-            result = user_data.delete_identities(user_id, get_identity_list(json))
+            result = await user_data.delete_identities(user_id, set(get_identity_list(json)))
 
         if result[0] == False:
             await ctx.reply(result[1])
             return
 
-        await asyncio.gather(user_data.save_to_file(), ctx.reply(f"User {username} added"))
+        await asyncio.gather(user_data.save_to_file(), ctx.reply(result[1]))
 
     @commands.command()
     @commands.check(is_bot_channel)

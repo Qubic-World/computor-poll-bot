@@ -2,9 +2,9 @@ import logging
 
 from discord import Client, Member
 
-from data.users import UserData, user_data
 from data.identity import identity_manager
-from utils.botutils import (get_member_by_id, get_role)
+from data.users import UserData, user_data
+from utils.botutils import get_member_by_id, get_role
 from utils.message import is_valid_identity
 
 
@@ -18,7 +18,6 @@ class RoleManager():
             raise ValueError("you cannot assign a role to the bot")
 
         try:
-
             role = get_role(self._bot)
             if set_role:
                 await member.add_roles(role)
@@ -59,3 +58,23 @@ class RoleManager():
             await self.__set_role(identity, False)
         except Exception as e:
             logging.error(e)
+
+    async def removed_identities_from_user(self, user_id: int, identities: set):
+        """
+        When a user has deleted their IDs. 
+        Check if the remaining ones are Computors. If not, delete the role
+        """
+
+        user_identities = user_data.get_user_identities(user_id)
+        member = get_member_by_id(self._bot, user_id)
+        if member == None:
+            logging.warning(
+                f"RoleManager.removed_identities_from_user: \
+                failed to get the member user with id {user_id} ")
+            return
+
+        for user_id in user_identities:
+            if user_id in identity_manager.identity:
+                return
+
+        await self.__set_role_to_member(member, False)

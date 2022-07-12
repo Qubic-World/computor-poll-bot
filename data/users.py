@@ -52,15 +52,20 @@ class UserData():
         data: dict = self.__get_user_data(user_id)
         if data == None:
             logging.warning(
-                "UserData.delete_identities: user with id {user_id} is not found")
-            return
+                f"UserData.delete_identities: user with id {user_id} is not found")
+            return (False, "User is not found")
 
         user_identities = set(data[str(user_id)])
         unfound: set = identities_for_remove - user_identities
         will_deleted: set = identities_for_remove - unfound
         if len(will_deleted) > 0:
             data.update({str(user_id): list(user_identities - will_deleted)})
-            await self.__call_removed_identities(will_deleted)
+            await self.save_to_file()
+
+            await self.__call_removed_identities(user_id, will_deleted)
+            return (True, "ID successfully deleted")
+        
+        return (False, "This ID is not registered")
 
     def get_user_id(self, identity: str) -> int:
         for user_data in self._user_data[USER_DATA_FIELD]:
@@ -106,9 +111,9 @@ class UserData():
             else:
                 callback(identities)
 
-    async def __call_removed_identities(self, identities: set):
+    async def __call_removed_identities(self, user_id: int, identities: set):
         for callback in self.__removed_identities_callback:
-            await self.__call_callback(callback, identities)
+            await self.__call_callback(callback, user_id, identities)
 
     def get_user_identities(self, user_id: int) -> set:
         try:
@@ -119,4 +124,3 @@ class UserData():
 
 
 user_data = UserData()
-

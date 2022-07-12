@@ -6,6 +6,7 @@ from discord import Intents
 from discord.ext import commands
 from discord_components import DiscordComponents
 from dotenv import load_dotenv
+from commands.register import RegisterCog
 
 
 from poll.pollmanager import PollCog
@@ -50,67 +51,16 @@ network_task: Optional[asyncio.Task] = None
 """Commands
 """
 
-
-@poll_bot.command(name='register')
-@commands.check(is_bot_channel)
-async def _register(ctx, *, json):
-    """User registration
-    """
-    # Adding to the pool
-    await pool_commands.add_command(register, ctx, json)
-
-# Executing from pool
-async def register(ctx: commands.Context, json):
-    """User registration
-    """
-    result = is_valid_message(json)
-    if result[0] == False:
-        await ctx.reply(result[1])
-        return
-
-    username = get_username_from_message(json)
-    if len(username) <= 0:
-        await ctx.reply("Failed to retrieve username from message field")
-        return
-
-    member = get_member_by_username(poll_bot, username)
-    error_message = ""
-    if member == None:
-        error_message = "Unable to find the user"
-    elif get_username_with_discr(ctx.author) != username:
-        error_message = "The request must include your username"
-
-    if len(error_message) > 0:
-        await ctx.reply(error_message)
-        return
-
-    try:
-        message = str()
-        user_id = get_user_id_from_username(poll_bot, username)
-        if user_id == None:
-            message = str("Unable to find the user")
-    except ValueError as e:
-        message = str("Error: " + str(e))
-    finally:
-        if len(message) > 0:
-            await ctx.reply(message)
-            return
-
-    result = user_data.add_data(user_id, get_identity_list(json))
-    if result[0] == False:
-        await ctx.reply(result[1])
-        return
-
-    await asyncio.gather(user_data.save_to_file(), ctx.reply(f"User {username} added"))
-
-
 @poll_bot.event
 async def on_ready():
     print("On ready")
 
     poll_cog = PollCog(poll_bot)
+    register_cog = RegisterCog(poll_bot)
     await poll_cog.load_from_cache()
     poll_bot.add_cog(poll_cog)
+    poll_bot.add_cog(register_cog)
+
 
     # Starting qubic-netwrok
     network_task = asyncio.create_task(network.start())
@@ -137,7 +87,9 @@ def main():
     # Setting identity manager
     identity_manager.observe_added(role_manager.add_role)
     identity_manager.observe_removed(role_manager.remove_role)
-    user_data.observe_new_identities(identity_manager.on_new_identities)
+    # TODO: move identity_manager.on_new_identities to role_manager
+    user_data.add_new_identities_callback(identity_manager.on_new_identities)
+    user_data.add_removed_identities_callback(role_manager.removed_identities_from_user)
 
     poll_bot.add_check(is_bot_guild)
     poll_bot.add_check(has_role_in_guild)
