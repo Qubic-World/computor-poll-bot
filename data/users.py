@@ -64,7 +64,7 @@ class UserData():
 
             await self.__call_removed_identities(user_id, will_deleted)
             return (True, "ID successfully deleted")
-        
+
         return (False, "This ID is not registered")
 
     def get_user_id(self, identity: str) -> int:
@@ -121,6 +121,13 @@ class UserData():
             return set(user_data[str(user_id)])
         except:
             return set()
+
+    def is_identity_exist(self, identity: str) -> int:
+        for user_data in self._user_data[USER_DATA_FIELD]:
+            if identity in list(user_data.values())[0]:
+                return int(list(user_data.keys())[0])
+
+        return None
 
 
 user_data = UserData()
