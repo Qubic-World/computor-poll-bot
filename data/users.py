@@ -1,5 +1,6 @@
 import asyncio
 import json
+from json import JSONDecodeError, decoder
 import logging
 
 import aiofiles
@@ -25,14 +26,14 @@ class UserData():
     def _get_user_data(self, user_id: int):
         return self.__get_user_data(user_id)
 
-    def add_data(self, user_id: int, identity_list: list):
+    async def add_data(self, user_id: int, identity_list: list):
         # The user_id needs to be converted to string. After loading data from a file, the json key is converted from int to string
         user_id_str = str(user_id)
         found_data = self.__get_user_data(user_id)
         if found_data == None:
             self._user_data[USER_DATA_FIELD].append(
                 {user_id_str: identity_list})
-            self.call_new_identities(set(identity_list))
+            await self.call_new_identities(set(identity_list))
             return (True, "User added")
         else:
             list_data = found_data[user_id_str]
@@ -43,7 +44,7 @@ class UserData():
 
             if len(new_identities) > 0:
                 found_data[user_id_str] = list(set(list_data + new_identities))
-                self.call_new_identities(set(new_identities))
+                await self.call_new_identities(set(new_identities))
                 return (True, "User added")
 
         return (False, "The user is already associated with this ID")
@@ -88,6 +89,8 @@ class UserData():
                 self._user_data = json.loads(await file.read())
         except FileNotFoundError:
             self.reset()
+        except json.decoder.JSONDecodeError:
+            self.reset()
 
     def add_new_identities_callback(self, function):
         self._new_identities_callbacks.add(function)
@@ -101,15 +104,19 @@ class UserData():
         else:
             callback(*args)
 
-    def call_new_identities(self, identities: set):
-        loop = asyncio.get_event_loop()
+    async def call_new_identities(self, identities: set):
+        tasks = []
         for callback in self._new_identities_callbacks:
             if asyncio.iscoroutinefunction(callback):
-                task = loop.create_task(callback(identities))
+                task = asyncio.create_task(callback(identities))
                 self.background_task.add(task)
                 task.add_done_callback(self.background_task.discard)
+                tasks.append(task)
             else:
                 callback(identities)
+
+        if len(tasks) > 0:
+            await asyncio.wait(tasks)
 
     async def __call_removed_identities(self, user_id: int, identities: set):
         for callback in self.__removed_identities_callback:

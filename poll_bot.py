@@ -53,9 +53,14 @@ async def on_ready():
 
     poll_cog = PollCog(poll_bot)
     register_cog = RegisterCog(poll_bot)
-    await poll_cog.load_from_cache()
+    await poll_cog._load__polls_from_file()
     poll_bot.add_cog(poll_cog)
     poll_bot.add_cog(register_cog)
+
+    user_data.add_new_identities_callback(poll_cog.recount)
+    user_data.add_removed_identities_callback(poll_cog.recount)
+    identity_manager.observe_removed(poll_cog.recount)
+    identity_manager.observe_added(poll_cog.recount)
 
     # Starting qubic-netwrok
     network_task = asyncio.create_task(network.start())

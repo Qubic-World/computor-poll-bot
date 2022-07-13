@@ -30,6 +30,7 @@ class RoleManager():
         if len(identity) < 0:
             raise ValueError("identity cannot be empty")
 
+
         valid_identity: set = [
             item for item in identity if is_valid_identity(item)]
         for id in valid_identity:
@@ -39,7 +40,7 @@ class RoleManager():
             if set_role == False:
                 user_identity_set = user_data.get_user_identities(user_id)
                 for user_identity in user_identity_set:
-                    if user_identity in identity_manager.identity:
+                    if user_identity in identity_manager.computor_identities:
                         continue
 
             if user_id != None:
@@ -47,15 +48,18 @@ class RoleManager():
                 if member != None:
                     await self.__set_role_to_member(member, set_role)
 
-    async def add_role(self, identity: set):
+    async def add_role(self, identities: set):
         try:
-            await self.__set_role(identity, True)
+            computor_identities = set([id for id in identities if id in identity_manager.computor_identities])
+            if len(computor_identities) > 0:
+                print(list(identity_manager.computor_identities).index(list(computor_identities)[0]))
+                await self.__set_role(computor_identities, True)
         except Exception as e:
             logging.error(e)
 
-    async def remove_role(self, identity: set):
+    async def remove_role(self, identities: set):
         try:
-            await self.__set_role(identity, False)
+            await self.__set_role(identities, False)
         except Exception as e:
             logging.error(e)
 
@@ -74,7 +78,7 @@ class RoleManager():
             return
 
         for user_id in user_identities:
-            if user_id in identity_manager.identity:
+            if user_id in identity_manager.computor_identities:
                 return
 
         await self.__set_role_to_member(member, False)

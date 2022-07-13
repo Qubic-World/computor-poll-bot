@@ -1,6 +1,7 @@
 import asyncio
 import aiofiles
 import ast
+import itertools
 
 
 class IdentityManager():
@@ -31,7 +32,14 @@ class IdentityManager():
 
     @property
     def identity(self) -> set:
+        """All identities
+        """
         return self._identity
+    @property
+    def computor_identities(self) -> set:
+        """676 identities
+        """
+        return set(itertools.islice(self._identity, 676))
 
     """
     Files
@@ -92,6 +100,12 @@ class IdentityManager():
                 
         if len(existing_identities) > 0:
             self.call_added_new(existing_identities)
+
+    def get_only_computor_identities(self, identities: set)->set:
+        """Takes the identities and returns only those that are computors
+        """
+        not_computors = identities - self.computor_identities
+        return identities - not_computors
 
 
 identity_manager = IdentityManager()

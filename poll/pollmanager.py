@@ -6,7 +6,7 @@ from typing import Optional
 from uuid import UUID, uuid4
 
 import aiofiles
-from checkers import has_role_on_member, is_bot_channel, is_poll_channel
+from checkers import has_role_on_member, is_bot_channel
 from commands.pool import pool_commands
 from data.identity import identity_manager
 from data.users import user_data
@@ -53,13 +53,16 @@ class Poll():
         self.__done_callback = set()
         self.__create_callback = set()
         self.__voted_callback = set()
+        self.__recount_callback = set()
         self.__components = []
         self.__components_id = []
         self.__background_tasks = []
-        """Number of votes for a specific vote
+        """Which users voted for which variant
+        {user_id: variant_idx}
         """
-        self.__vote_counter = dict()
-        """Users who took part in the poll and their numbers of votes
+        self.__selected_variants = dict()
+        """Users and their IDs who voted
+        {user_id: ["AAAAA...", "BBBBB..."]}
         """
         self.__voted_users = dict()
 
@@ -71,17 +74,79 @@ class Poll():
     def number_of_voters(self):
         """Number of votes received
         """
+        vote_counts = self.get_vote_counts()
         sum = 0
-        for value in self.__vote_counter.values():
-            sum = sum + value
+        for count in vote_counts.values():
+            sum += count
 
         return sum
+
+    def get_vote_counts(self):
+        """
+        {variant_idx: count}
+        """
+        vote_counts = dict()
+        for user_id, variant in self.__selected_variants.items():
+            # The number of IDs equals the number of votes
+            count = len(self.__voted_users[user_id])
+            vote_count = vote_counts.setdefault(variant, 0)
+            vote_counts[variant] = vote_count + count
+
+        return vote_counts
+
+    def pretty_vote_count(self):
+        list_vote = []
+        for key, value in sorted(self.get_vote_counts().items()):
+            list_vote.append(f"{key + 1}: {value}")
+
+        return ", ".join(list_vote)
+
+    async def resend_embed(self):
+        embed: Embed = self.__poll_message.embeds[0]
+        embed.set_footer(text=f'Vote count:\n {self.pretty_vote_count()}')
+        await self.__poll_message.edit(embed=embed)
+
+    def update_user_identities(self, user_id: int) -> bool:
+        if user_id in self.__voted_users.keys():
+            computor_identities = identity_manager.get_only_computor_identities(
+                user_data.get_user_identities(user_id))
+            self.__voted_users[user_id] = computor_identities
+            return True
+        else:
+            logging.warning(
+                f"Poll.update_user_identities: user_id {user_id} is not found")
+
+        return False
+
+    async def recount_votes_by_user_id(self, user_id: int):
+        if self.update_user_identities(user_id):
+            try:
+                await self.resend_embed()
+            except Exception as e:
+                logging.warning(e)
+                
+            await self.call_callback(self.__recount_callback)
+
+    async def recount_votes(self):
+        # Overwriting the ID
+        was_update = False
+        for user_id in self.__voted_users.keys():
+            if self.update_user_identities(user_id) and was_update == False:
+                was_update = True
+
+        if was_update:
+            try:
+                await self.resend_embed()
+            except Exception as e:
+                logging.warning(e)
+
+            await self.call_callback(self.__recount_callback)
 
     def as_dict(self):
         return {POLL_FIELDS[0]: str(self.__id),
                 POLL_FIELDS[1]: list(self.__variants),
                 POLL_FIELDS[2]: self.__poll_message_id,
-                POLL_FIELDS[3]: str(self.__vote_counter),
+                POLL_FIELDS[3]: str(self.__selected_variants),
                 POLL_FIELDS[4]: str(self.__voted_users)}
 
     async def __start_listen_byttons(self):
@@ -100,23 +165,14 @@ class Poll():
             """
             return custom_id in self.__components_id
 
-        def get_total_user_votes(user_id: int):
-            identity_set = user_data.get_user_identities(user_id)
-            if len(identity_set) <= 0:
-                return 0
-
-            return len([id for id in identity_set if id in identity_manager.identity])
-
-        def has_unused_votes(user_id: int):
-            """Each user can vote as many times as their ID is in 676
+        def is_voted(user_id: int):
+            """Did the user vote
             """
-
-            number_of_votes = self.__voted_users.setdefault(user_id, 0)
-            return get_total_user_votes(user_id) > number_of_votes
+            return user_id in self.__voted_users.keys()
 
         def check(interaction):
             user = interaction.user
-            return check_role(user) and check_button(interaction.custom_id) and has_unused_votes(user.id)
+            return check_role(user) and check_button(interaction.custom_id) and not is_voted(user.id)
 
         def get_variant_index(interaction):
             """Get the variant number from the button pressed
@@ -135,20 +191,12 @@ class Poll():
             """Increase the number of votes of a particular user
             """
             user_id = interaction.user.id
-            value = self.__voted_users.setdefault(user_id, 0)
-            delta_value = get_total_user_votes(user_id) - value
-            self.__voted_users[user_id] = value + delta_value
+            computor_identities = identity_manager.get_only_computor_identities(
+                user_data.get_user_identities(user_id))
+            self.__voted_users.setdefault(user_id, computor_identities)
 
-            dict_key = get_variant_index(interaction)
-            value = self.__vote_counter.setdefault(dict_key, 0)
-            self.__vote_counter[dict_key] = value + delta_value
-
-        def pretty_vote_count():
-            list_vote = []
-            for key, value in self.__vote_counter.items():
-                list_vote.append(f"{key + 1}: {value}")
-
-            return ", ".join(list_vote)
+            variant_idx = get_variant_index(interaction)
+            self.__selected_variants.setdefault(user_id, variant_idx)
 
         while True:
             try:
@@ -166,9 +214,7 @@ class Poll():
 
                 """Outputting the number of votes
                 """
-                embed: Embed = self.__poll_message.embeds[0]
-                embed.set_footer(text=f'Vote count:\n {pretty_vote_count()}')
-                await self.__poll_message.edit(embed=embed)
+                await self.resend_embed()
 
                 await self.call_callback(self.__voted_callback)
 
@@ -204,7 +250,7 @@ class Poll():
         self.__id = UUID(data[POLL_FIELDS[0]])
         self.__variants = data[POLL_FIELDS[1]]
         self.__poll_message_id = int(data[POLL_FIELDS[2]])
-        self.__vote_counter = eval(data[POLL_FIELDS[3]])
+        self.__selected_variants = eval(data[POLL_FIELDS[3]])
         self.__voted_users = eval(data[POLL_FIELDS[4]])
 
         self.__components_id = [
@@ -248,12 +294,19 @@ class Poll():
     def add_voted_callback(self, function):
         self.__voted_callback.add(function)
 
+    def add_recount_callback(self, function):
+        self.__recount_callback.add(function)
+
 
 class PollCog(commands.Cog):
     def __init__(self, bot) -> None:
         self.__bot: Client = bot
         self.__poll_list = []
         self.__cache_file = r"./data_files/poll_cache.data"
+
+    @property
+    def polls(self):
+        return self.__poll_list
 
     def _is_valid_message(self, description: str, *variants: str):
         if len(variants) >= MINIMUM_NUMBER_OF_VARIANTS and len(variants) <= MAXIMUM_NUMBER_OF_VARIANTS:
@@ -267,7 +320,7 @@ class PollCog(commands.Cog):
     def get_variants(self, json_body: dict):
         return list(json_body[VARIANTS_FIELD])
 
-    async def load_from_cache(self):
+    async def _load__polls_from_file(self):
         dict_list = []
         if os.path.isfile(self.__cache_file):
             async with aiofiles.open(self.__cache_file, "r") as f:
@@ -286,16 +339,42 @@ class PollCog(commands.Cog):
             self.__poll_list.append(poll)
             self.init_callback(poll)
 
+        old_size = len(self.__poll_list)
+        await self.__cleanup()
+        if len(self.__poll_list) != old_size:
+            await self._save_polls_to_file(None)
+
     def init_callback(self, poll: Poll):
         poll.add_done_callback(self.__on_done)
-        poll.add_crete_callback(self.__on_cache_polls)
-        poll.add_voted_callback(self.__on_cache_polls)
+        poll.add_crete_callback(self._save_polls_to_file)
+        poll.add_voted_callback(self._save_polls_to_file)
+        poll.add_recount_callback(self._save_polls_to_file)
 
     @commands.check(has_role_on_member)
     @commands.check(is_bot_channel)
     @commands.command(name="poll")
     async def poll_command(self, ctx: Context, description, *variants):
         await pool_commands.add_command(self._on_poll, ctx, description, *variants)
+
+    async def recount(self, *args, **kwargs):
+        try:
+            user_id: int = kwargs['user_id']
+        except:
+            user_id = None
+
+        poll: Poll = None
+        tasks = []
+        for poll in self.__poll_list:
+            if user_id != None:
+                task = asyncio.create_task(
+                    poll.recount_votes_by_user_id(user_id))
+            else:
+                task = asyncio.create_task(poll.recount_votes())
+
+            tasks.append(task)
+
+        if len(tasks) > 0:
+            await asyncio.wait(tasks)
 
     async def _on_poll(self, ctx: Context, description, *variants):
         success, message = self._is_valid_message(description, *variants)
@@ -309,7 +388,9 @@ class PollCog(commands.Cog):
         self.init_callback(poll)
         await poll.create()
 
-    async def __on_cache_polls(self, poll: Poll):
+    async def __cleanup(self):
+        """Deletes non-existing polls
+        """
         async def is_exists_message(message_id: int) -> bool:
             try:
                 message: Message = await get_poll_message_by_id(self.__bot, message_id)
@@ -318,7 +399,7 @@ class PollCog(commands.Cog):
 
             return True
 
-        """Search for old messages and delete them
+        """Delete polls that don't exist or have been completed and haven't closed for some reason
         """
         tasks = []
         for item in self.__poll_list:
@@ -329,11 +410,18 @@ class PollCog(commands.Cog):
         results = await asyncio.gather(*tasks, return_exceptions=True)
         for idx in reversed(range(len(results))):
             result = results[idx]
-            poll_item = self.__poll_list[idx]
+            poll_item:Poll = self.__poll_list[idx]
             if type(result) is Exception or result == False:
                 self.__poll_list.remove(poll_item)
             else:
-                dict_list.append(poll_item.as_dict())
+                if poll_item.number_of_voters >= NUMBER_OF_VOTES_FOR_END:
+                    await poll_item.done()
+
+
+    async def _save_polls_to_file(self, poll: Poll):
+        await self.__cleanup()
+
+        dict_list = [poll_item.as_dict() for poll_item in self.__poll_list]
 
         async with aiofiles.open(self.__cache_file, "w") as f:
             await f.write(json.dumps(str(dict_list)))
@@ -344,7 +432,7 @@ class PollCog(commands.Cog):
         except ValueError:
             pass
 
-        await self.__on_cache_polls(None)
+        await self.__save_polls_to_file()(None)
 
     @commands.Cog.listener()
     async def on_message_delete(self, message):
@@ -355,7 +443,7 @@ class PollCog(commands.Cog):
                 removed = True
 
         if removed:
-            await self.__on_cache_polls(None)
+            await self.__save_polls_to_file()(None)
 
 
 class PollManager():

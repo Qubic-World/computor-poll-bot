@@ -66,7 +66,7 @@ class RegisterCog(commands.Cog):
             identity_list = get_identity_list(json)
             found_user_id = user_data.is_identity_exist(identity_list[0])
             if found_user_id == None: 
-                result = user_data.add_data(user_id, identity_list)
+                result = await user_data.add_data(user_id, identity_list)
             else:
                 result = (False, "This ID is already registered")
         else:
