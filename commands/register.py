@@ -1,9 +1,11 @@
 import asyncio
+import os
 
 from checkers import is_bot_channel
 from data.users import user_data
-from discord import Client
+from discord import Client, Embed
 from discord.ext import commands
+from discord.ext.commands import Context
 from utils.botutils import get_username_with_discr
 from utils.message import (get_identity_list, get_username_from_message,
                            is_valid_message)
@@ -16,6 +18,17 @@ class RegisterCog(commands.Cog):
     def __init__(self, bot: Client) -> None:
         super().__init__()
         self.__bot = bot
+
+    @commands.command()
+    @commands.check(is_bot_channel)
+    async def reg_data(self, ctx: Context):
+        await pool_commands.add_command(self.__reg_data, ctx)
+
+    async def __reg_data(self, ctx: Context):
+        users = len(user_data.get_all_users())
+        identities = len(user_data.get_all_identities())
+        e = Embed(title="Total registered", description=f"Users: {users}{os.linesep}IDs: {identities}")
+        await ctx.reply(embed=e, delete_after=10)
 
     @commands.command(name='register')
     @commands.check(is_bot_channel)
@@ -65,7 +78,7 @@ class RegisterCog(commands.Cog):
         if unregister == False:
             identity_list = get_identity_list(json)
             found_user_id = user_data.is_identity_exist(identity_list[0])
-            if found_user_id == None: 
+            if found_user_id == None:
                 result = await user_data.add_data(user_id, identity_list)
             else:
                 result = (False, "This ID is already registered")
