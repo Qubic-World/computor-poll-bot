@@ -22,18 +22,27 @@ class RegisterCog(commands.Cog):
     @commands.command()
     @commands.check(is_bot_channel)
     async def reg_data(self, ctx: Context):
+        """Prints the number of registered users and IDs
+        """
         await pool_commands.add_command(self.__reg_data, ctx)
 
     async def __reg_data(self, ctx: Context):
         users = len(user_data.get_all_users())
         identities = len(user_data.get_all_identities())
-        e = Embed(title="Total registered", description=f"Users: {users}{os.linesep}IDs: {identities}")
+        e = Embed(title="Total registered",
+                  description=f"Users: {users}{os.linesep}IDs: {identities}")
         await ctx.reply(embed=e, delete_after=10)
 
     @commands.command(name='register')
     @commands.check(is_bot_channel)
     async def register(self, ctx, *, json):
         """User registration
+        Example:
+        /register {
+            "identity": "BPFJANADOGBDLNNONDILEMAICAKMEEGBFPJBKPBCEDFJIALDONODMAIMDBFKCFEEMEOLFK",
+            "message": "For ComputorPollBot from N-010#3073",
+            "signature": "bhijbaejihfcgpbmoddoihhfhoapmdhnogkolnimfekndhpdddeddjfhopmdbacbjjcjcddmklmdkfeplkbdaiogdboobiiodmhndphmoaljnaeedcoaijnfpddebdaadg"
+        }
         """
         # Adding to the pool
         await pool_commands.add_command(self.__register, ctx, json, False)
@@ -94,4 +103,11 @@ class RegisterCog(commands.Cog):
     @commands.command()
     @commands.check(is_bot_channel)
     async def unregister(self, ctx, *, json):
+        """Unregister ID
+        /unregister {
+            "identity": "BPFJANADOGBDLNNONDILEMAICAKMEEGBFPJBKPBCEDFJIALDONODMAIMDBFKCFEEMEOLFK",
+            "message": "For ComputorPollBot from N-010#3073",
+            "signature": "bhijbaejihfcgpbmoddoihhfhoapmdhnogkolnimfekndhpdddeddjfhopmdbacbjjcjcddmklmdkfeplkbdaiogdboobiiodmhndphmoaljnaeedcoaijnfpddebdaadg"
+        }
+        """
         await pool_commands.add_command(self.__register, ctx, json, True)
