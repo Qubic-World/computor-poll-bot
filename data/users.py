@@ -1,6 +1,5 @@
 import asyncio
 import json
-from json import JSONDecodeError, decoder
 import logging
 
 import aiofiles
@@ -17,11 +16,15 @@ class UserData():
         self.__removed_identities_callback = set()
         self.background_task = set()
 
+    @property
+    def user_data(self) -> dict:
+        return self._user_data[USER_DATA_FIELD]
+
     def __get_user_data(self, user_id: int):
         # The user_id needs to be converted to string. After loading data from a file, the json key is converted from int to string
         user_id_str = str(user_id)
         return next(
-            (item for item in self._user_data[USER_DATA_FIELD] if user_id_str in item.keys()), None)
+            (item for item in self.user_data if user_id_str in item.keys()), None)
 
     def _get_user_data(self, user_id: int):
         return self.__get_user_data(user_id)
@@ -31,7 +34,7 @@ class UserData():
         user_id_str = str(user_id)
         found_data = self.__get_user_data(user_id)
         if found_data == None:
-            self._user_data[USER_DATA_FIELD].append(
+            self.user_data.append(
                 {user_id_str: identity_list})
             await self.call_new_identities(set(identity_list))
             return (True, "User added")
@@ -69,7 +72,7 @@ class UserData():
         return (False, "This ID is not registered")
 
     def get_user_id(self, identity: str) -> int:
-        for user_data in self._user_data[USER_DATA_FIELD]:
+        for user_data in self.user_data:
             if identity in next(iter(user_data.values())):
                 return int(next(iter(user_data.keys())))
 
@@ -129,10 +132,13 @@ class UserData():
         except:
             return set()
 
+    def get_all_users(self):
+        return [int(list(user_data.keys())[0]) for user_data in self.user_data]
+
     def is_identity_exist(self, identity: str) -> int:
-        for user_data in self._user_data[USER_DATA_FIELD]:
-            if identity in list(user_data.values())[0]:
-                return int(list(user_data.keys())[0])
+        for data in self.user_data:
+            if identity in list(data.values())[0]:
+                return int(list(data.keys())[0])
 
         return None
 

@@ -62,6 +62,9 @@ async def on_ready():
     identity_manager.observe_removed(poll_cog.recount)
     identity_manager.observe_added(poll_cog.recount)
 
+    # After starting the bot, reassign the roles
+    await role_manager.reassign_roles()
+
     # Starting qubic-netwrok
     network_task = asyncio.create_task(network.start())
 

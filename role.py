@@ -1,6 +1,9 @@
+import asyncio
 import logging
+import traceback
 
-from discord import Client, Member
+import discord.utils
+from discord import Client, Member, Role
 
 from data.identity import identity_manager
 from data.users import UserData, user_data
@@ -14,22 +17,28 @@ class RoleManager():
         self._bot: Client = bot
 
     async def __set_role_to_member(self, member: Member, set_role: bool = True):
+        if member == None:
+            traceback.print_stack()
+            logging.warning("RoleManager.__set_role_to_membet: member is None")
+            return
+
         if member.bot:
             raise ValueError("you cannot assign a role to the bot")
 
         try:
-            role = get_role(self._bot)
+            role: Role = get_role(self._bot)
             if set_role:
-                await member.add_roles(role)
+                if discord.utils.get(member.roles, id=role.id) == None:
+                    await member.add_roles(role)
             else:
-                await member.remove_roles(role)
+                if discord.utils.get(member.roles, id=role.id) != None:
+                    await member.remove_roles(role)
         finally:
             pass
 
     async def __set_role(self, identity: set, set_role: bool = True):
         if len(identity) < 0:
             raise ValueError("identity cannot be empty")
-
 
         valid_identity: set = [
             item for item in identity if is_valid_identity(item)]
@@ -50,9 +59,9 @@ class RoleManager():
 
     async def add_role(self, identities: set):
         try:
-            computor_identities = set([id for id in identities if id in identity_manager.computor_identities])
+            computor_identities = set(
+                [id for id in identities if id in identity_manager.computor_identities])
             if len(computor_identities) > 0:
-                print(list(identity_manager.computor_identities).index(list(computor_identities)[0]))
                 await self.__set_role(computor_identities, True)
         except Exception as e:
             logging.error(e)
@@ -82,3 +91,28 @@ class RoleManager():
                 return
 
         await self.__set_role_to_member(member, False)
+
+    async def reassign_roles(self):
+        """
+        """
+        user_id_list = user_data.get_all_users()
+        # (member, set_role: bool)
+        members = []
+        for user_id in user_id_list:
+            member: Member = get_member_by_id(self._bot, user_id)
+            if member == None:
+                logging.warning(
+                    "RoleManager.reset_roles: failed to get a member")
+                continue
+
+            if len(identity_manager.get_only_computor_identities(user_data.get_user_identities(user_id))) <= 0:
+                members.append((member, False))
+            else:
+                members.append((member, True))
+
+        tasks = []
+        for member in members:
+            tasks.append(asyncio.create_task(
+                self.__set_role_to_member(member[0], member[1])))
+
+        await asyncio.wait(tasks)
