@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-import os
 from typing import Optional
 from uuid import UUID, uuid4
 
@@ -125,7 +124,7 @@ class Poll():
                 await self.resend_embed()
             except Exception as e:
                 logging.warning(e)
-                
+
             await self.call_callback(self.__recount_callback)
 
     async def recount_votes(self):
@@ -321,30 +320,6 @@ class PollCog(commands.Cog):
     def get_variants(self, json_body: dict):
         return list(json_body[VARIANTS_FIELD])
 
-    async def _load__polls_from_file(self):
-        dict_list = []
-        if os.path.isfile(self.__cache_file):
-            async with aiofiles.open(self.__cache_file, "r") as f:
-                dict_list = list(eval(json.loads(await f.read())))
-
-        if len(dict_list) <= 0:
-            return
-
-        for data in dict_list:
-            poll = Poll(self.__bot, None, "", "")
-            try:
-                await poll.create_from_dict(data)
-            except:
-                pass
-
-            self.__poll_list.append(poll)
-            self.init_callback(poll)
-
-        old_size = len(self.__poll_list)
-        await self.__cleanup()
-        if len(self.__poll_list) != old_size:
-            await self._save_polls_to_file(None)
-
     def init_callback(self, poll: Poll):
         poll.add_done_callback(self.__on_done)
         poll.add_crete_callback(self._save_polls_to_file)
@@ -413,13 +388,12 @@ class PollCog(commands.Cog):
         results = await asyncio.gather(*tasks, return_exceptions=True)
         for idx in reversed(range(len(results))):
             result = results[idx]
-            poll_item:Poll = self.__poll_list[idx]
+            poll_item: Poll = self.__poll_list[idx]
             if type(result) is Exception or result == False:
                 self.__poll_list.remove(poll_item)
             else:
                 if poll_item.number_of_voters >= NUMBER_OF_VOTES_FOR_END:
                     await poll_item.done()
-
 
     async def _save_polls_to_file(self, poll: Poll):
         await self.__cleanup()
@@ -428,6 +402,33 @@ class PollCog(commands.Cog):
 
         async with aiofiles.open(self.__cache_file, "w") as f:
             await f.write(json.dumps(str(dict_list)))
+
+    async def _load_polls_from_file(self):
+        dict_list = []
+        try:
+            async with aiofiles.open(self.__cache_file, "r") as f:
+                dict_list = list(eval(json.loads(await f.read())))
+        except FileNotFoundError:
+            return
+
+        if len(dict_list) <= 0:
+            return
+
+        for data in dict_list:
+            poll = Poll(self.__bot, None, "", "")
+            try:
+                await poll.create_from_dict(data)
+            except:
+                pass
+
+            self.__poll_list.append(poll)
+            self.init_callback(poll)
+
+        # After loading from a file, delete invalid polls
+        old_size = len(self.__poll_list)
+        await self.__cleanup()
+        if len(self.__poll_list) != old_size:
+            await self._save_polls_to_file(None)
 
     async def __on_done(self, poll: Poll):
         try:

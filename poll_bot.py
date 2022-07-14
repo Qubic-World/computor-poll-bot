@@ -53,7 +53,7 @@ async def on_ready():
 
     poll_cog = PollCog(poll_bot)
     register_cog = RegisterCog(poll_bot)
-    await poll_cog._load__polls_from_file()
+    await poll_cog._load_polls_from_file()
     poll_bot.add_cog(poll_cog)
     poll_bot.add_cog(register_cog)
 
