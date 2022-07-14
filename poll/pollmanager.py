@@ -97,7 +97,8 @@ class Poll():
     def pretty_vote_count(self):
         list_vote = []
         for key, value in sorted(self.get_vote_counts().items()):
-            list_vote.append(f"{key + 1}: {value}")
+            if value > 0:
+                list_vote.append(f"{key + 1}: {value}")
 
         return ", ".join(list_vote)
 
