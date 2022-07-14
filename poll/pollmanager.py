@@ -330,6 +330,10 @@ class PollCog(commands.Cog):
     @commands.check(is_bot_channel)
     @commands.command(name="poll")
     async def poll_command(self, ctx: Context, description, *variants):
+        """Creating a poll in which only participants with the Computor role can take part
+        Example:
+        /poll "poll body" "var 1" "var 2" "var 3"
+        """
         await pool_commands.add_command(self._on_poll, ctx, description, *variants)
 
     async def recount(self, *args, **kwargs):
