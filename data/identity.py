@@ -8,8 +8,8 @@ class IdentityManager():
     def __init__(self) -> None:
         self._identity = set()
         self._file_name = "./data_files/identity.data"
-        self._observers_added = set()
-        self._observers_removed = set()
+        self.__added_callback = set()
+        self.__removed_callback = set()
         self.background_task = set()
 
     def apply_identity(self, identity: set):
@@ -60,15 +60,15 @@ class IdentityManager():
     Decorators
     """
 
-    def observe_added(self, function):
-        self._observers_added.add(function)
+    def add_new_identities_callback(self, function):
+        self.__added_callback.add(function)
 
-    def observe_removed(self, function):
-        self._observers_removed.add(function)
+    def add_removed_identities_callback(self, function):
+        self.__removed_callback.add(function)
 
     def call_removed(self, removed_identity: set):
         loop = asyncio.get_event_loop()
-        for observer in self._observers_removed:
+        for observer in self.__removed_callback:
             if asyncio.iscoroutinefunction(observer):
                 task = loop.create_task(observer(removed_identity))
                 self.background_task.add(task)
@@ -80,7 +80,7 @@ class IdentityManager():
 
     def call_added_new(self, added_identity: set):
         loop = asyncio.get_event_loop()
-        for observer in self._observers_added:
+        for observer in self.__added_callback:
             if asyncio.iscoroutinefunction(observer):
                 task =loop.create_task(observer(added_identity))
                 self.background_task.add(task)

@@ -357,6 +357,8 @@ class PollCog(commands.Cog):
         await pool_commands.add_command(self._on_poll, ctx, description, *variants)
 
     async def recount(self, *args, **kwargs):
+        """Recount of votes in all polls
+        """
         try:
             user_id: int = kwargs['user_id']
         except:

@@ -57,10 +57,16 @@ async def on_ready():
     poll_bot.add_cog(poll_cog)
     poll_bot.add_cog(register_cog)
 
+    # Setting identity manager
+    identity_manager.add_new_identities_callback(role_manager.reassign_roles)
+    identity_manager.add_new_identities_callback(poll_cog.recount)
+    identity_manager.add_removed_identities_callback(role_manager.reassign_roles)
+    identity_manager.add_removed_identities_callback(poll_cog.recount)
+
+    user_data.add_new_identities_callback(role_manager.reassing_role)
     user_data.add_new_identities_callback(poll_cog.recount)
+    user_data.add_removed_identities_callback(role_manager.reassing_role)
     user_data.add_removed_identities_callback(poll_cog.recount)
-    identity_manager.observe_removed(poll_cog.recount)
-    identity_manager.observe_added(poll_cog.recount)
 
     # After starting the bot, reassign the roles
     await role_manager.reassign_roles()
@@ -86,14 +92,6 @@ def main():
     # Loading user data and identities
     loop.run_until_complete(asyncio.gather(
         user_data.load_from_file(), identity_manager.load_from_file()))
-
-    # Setting identity manager
-    identity_manager.observe_added(role_manager.add_role)
-    identity_manager.observe_removed(role_manager.remove_role)
-    # TODO: move identity_manager.on_new_identities to role_manager
-    user_data.add_new_identities_callback(identity_manager.on_new_identities)
-    user_data.add_removed_identities_callback(
-        role_manager.removed_identities_from_user)
 
     poll_bot.add_check(is_bot_guild)
     poll_bot.add_check(has_role_in_guild)

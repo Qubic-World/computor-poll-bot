@@ -36,7 +36,7 @@ class UserData():
         if found_data == None:
             self.user_data.append(
                 {user_id_str: identity_list})
-            await self.call_new_identities(set(identity_list))
+            await self.call_new_identities(user_id, set(identity_list))
             return (True, "User added")
         else:
             list_data = found_data[user_id_str]
@@ -47,7 +47,7 @@ class UserData():
 
             if len(new_identities) > 0:
                 found_data[user_id_str] = list(set(list_data + new_identities))
-                await self.call_new_identities(set(new_identities))
+                await self.call_new_identities(user_id, set(new_identities))
                 return (True, "User added")
 
         return (False, "The user is already associated with this ID")
@@ -107,16 +107,16 @@ class UserData():
         else:
             callback(*args)
 
-    async def call_new_identities(self, identities: set):
+    async def call_new_identities(self, user_id: int, identities: set):
         tasks = []
         for callback in self._new_identities_callbacks:
             if asyncio.iscoroutinefunction(callback):
-                task = asyncio.create_task(callback(identities))
+                task = asyncio.create_task(callback(user_id, identities))
                 self.background_task.add(task)
                 task.add_done_callback(self.background_task.discard)
                 tasks.append(task)
             else:
-                callback(identities)
+                callback(user_id, identities)
 
         if len(tasks) > 0:
             await asyncio.wait(tasks)

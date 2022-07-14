@@ -1,4 +1,5 @@
 import asyncio
+from curses import has_colors
 import logging
 import traceback
 
@@ -57,43 +58,8 @@ class RoleManager():
                 if member != None:
                     await self.__set_role_to_member(member, set_role)
 
-    async def add_role(self, identities: set):
-        try:
-            computor_identities = set(
-                [id for id in identities if id in identity_manager.computor_identities])
-            if len(computor_identities) > 0:
-                await self.__set_role(computor_identities, True)
-        except Exception as e:
-            logging.error(e)
-
-    async def remove_role(self, identities: set):
-        try:
-            await self.__set_role(identities, False)
-        except Exception as e:
-            logging.error(e)
-
-    async def removed_identities_from_user(self, user_id: int, identities: set):
-        """
-        When a user has deleted their IDs. 
-        Check if the remaining ones are Computors. If not, delete the role
-        """
-
-        user_identities = user_data.get_user_identities(user_id)
-        member = get_member_by_id(self._bot, user_id)
-        if member == None:
-            logging.warning(
-                f"RoleManager.removed_identities_from_user: \
-                failed to get the member user with id {user_id} ")
-            return
-
-        for user_id in user_identities:
-            if user_id in identity_manager.computor_identities:
-                return
-
-        await self.__set_role_to_member(member, False)
-
-    async def reassign_roles(self):
-        """
+    async def reassign_roles(self, *args):
+        """Reassigning the role if the status of the ID computor has changed
         """
         user_id_list = user_data.get_all_users()
         # (member, set_role: bool)
@@ -116,3 +82,16 @@ class RoleManager():
                 self.__set_role_to_member(member[0], member[1])))
 
         await asyncio.wait(tasks)
+
+    async def reassing_role(self, user_id: int, *args):
+        """Reassigning the role if the status of the ID computor has changed
+        """
+        member: Member = get_member_by_id(self._bot, user_id)
+        if member == None:
+            logging.warning(
+                "RoleManager.reset_roles: failed to get a member")
+            return
+
+        has_computors = len(identity_manager.get_only_computor_identities(user_data.get_user_identities(user_id))) > 0
+        await self.__set_role_to_member(member, has_computors)
+
