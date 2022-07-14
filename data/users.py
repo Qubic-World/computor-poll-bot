@@ -1,4 +1,5 @@
 import asyncio
+import itertools
 import json
 import logging
 
@@ -137,7 +138,7 @@ class UserData():
 
     def get_all_identities(self):
         ids_list =[list(user_data.values())[0] for user_data in self.user_data] 
-        return sum(ids_list, [])
+        return list(itertools.chain(*ids_list))
 
     def is_identity_exist(self, identity: str) -> int:
         for data in self.user_data:
