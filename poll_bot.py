@@ -7,7 +7,7 @@ from discord.ext import commands
 from discord_components import DiscordComponents
 from dotenv import load_dotenv
 
-from checkers import has_role_in_guild, is_bot_guild
+from checkers import has_role_in_guild, is_bot_in_guild, is_user_in_guild
 from commands.pool import pool_commands
 from commands.register import RegisterCog
 from data.identity import identity_manager
@@ -60,7 +60,8 @@ async def on_ready():
     # Setting identity manager
     identity_manager.add_new_identities_callback(role_manager.reassign_roles)
     identity_manager.add_new_identities_callback(poll_cog.recount)
-    identity_manager.add_removed_identities_callback(role_manager.reassign_roles)
+    identity_manager.add_removed_identities_callback(
+        role_manager.reassign_roles)
     identity_manager.add_removed_identities_callback(poll_cog.recount)
 
     user_data.add_new_identities_callback(role_manager.reassing_role)
@@ -93,7 +94,7 @@ def main():
     loop.run_until_complete(asyncio.gather(
         user_data.load_from_file(), identity_manager.load_from_file()))
 
-    poll_bot.add_check(is_bot_guild)
+    poll_bot.add_check(is_bot_in_guild)
     poll_bot.add_check(has_role_in_guild)
 
     try:

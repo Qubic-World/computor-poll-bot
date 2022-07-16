@@ -1,7 +1,7 @@
 import asyncio
 import os
 
-from checkers import is_bot_channel
+from checkers import is_bot_channel, is_user_in_guild
 from data.users import user_data
 from discord import Client, Embed
 from discord.ext import commands
@@ -34,7 +34,8 @@ class RegisterCog(commands.Cog):
         await ctx.reply(embed=e, delete_after=10)
 
     @commands.command(name='register')
-    @commands.check(is_bot_channel)
+    @commands.dm_only()
+    @commands.check(is_user_in_guild)
     async def register(self, ctx, *, json):
         """User registration
         Example:
@@ -101,7 +102,8 @@ class RegisterCog(commands.Cog):
         await asyncio.gather(user_data.save_to_file(), ctx.reply(result[1]))
 
     @commands.command()
-    @commands.check(is_bot_channel)
+    @commands.dm_only()
+    @commands.check(is_user_in_guild)
     async def unregister(self, ctx, *, json):
         """Unregister ID
         /unregister {
