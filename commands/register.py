@@ -19,7 +19,7 @@ class RegisterCog(commands.Cog):
         super().__init__()
         self.__bot = bot
 
-    @commands.command()
+    @commands.command(aliases=["reg_stats"])
     @commands.check(is_bot_channel)
     async def reg_data(self, ctx: Context):
         """Prints the number of registered users and IDs
