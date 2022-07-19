@@ -2,6 +2,7 @@ import asyncio
 import os
 
 from checkers import is_bot_channel, is_user_in_guild
+from data.identity import identity_manager
 from data.users import user_data
 from discord import Client, Embed
 from discord.ext import commands
@@ -113,3 +114,28 @@ class RegisterCog(commands.Cog):
         }
         """
         await pool_commands.add_command(self.__register, ctx, json, True)
+
+    @commands.command()
+    @commands.check(is_user_in_guild)
+    async def index(self, ctx, id:str):
+        """
+        Displays the ID index. The first index is 0
+
+        Example:
+        /index BPFJANADOGBDLNNONDILEMAICAKMEEGBFPJBKPBCEDFJIALDONODMAIMDBFKCFEEMEOLFK
+        """
+        await pool_commands.add_command(self.__index, ctx, id)
+
+    async def __index(self, ctx: Context, id: str):
+        try:
+            index = identity_manager.identity.index(id)
+            message = f"Your index: {index}"
+        except ValueError:
+            index = None
+            message = "You id was not found"
+
+        await ctx.reply(message)
+
+        
+
+        

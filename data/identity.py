@@ -6,15 +6,15 @@ import itertools
 
 class IdentityManager():
     def __init__(self) -> None:
-        self._identity = set()
+        self._identity = []
         self._file_name = "./data_files/identity.data"
         self.__added_callback = set()
         self.__removed_callback = set()
         self.background_task = set()
 
-    def apply_identity(self, identity: set):
-        old_identity = self._identity.difference(identity)
-        new_identity = identity.difference(self._identity)
+    def apply_identity(self, identity: list):
+        old_identity = set(self._identity).difference(identity)
+        new_identity = set(identity).difference(self._identity)
 
         self._identity = identity
 
@@ -31,15 +31,15 @@ class IdentityManager():
             asyncio.sleep(0.1)
 
     @property
-    def identity(self) -> set:
+    def identity(self) -> list:
         """All identities
         """
         return self._identity
     @property
-    def computor_identities(self) -> set:
+    def computor_identities(self) -> list:
         """676 identities
         """
-        return set(itertools.islice(self._identity, 676))
+        return itertools.islice(self._identity, 676)
 
     """
     Files
@@ -52,7 +52,7 @@ class IdentityManager():
     async def load_from_file(self):
         try:
             async with aiofiles.open(self._file_name, "r") as file:
-                self._identity = set(ast.literal_eval(await file.read()))
+                self._identity = list(ast.literal_eval(await file.read()))
         except:
             pass
 
@@ -104,8 +104,8 @@ class IdentityManager():
     def get_only_computor_identities(self, identities: set)->set:
         """Takes the identities and returns only those that are computors
         """
-        not_computors = identities - self.computor_identities
-        return identities - not_computors
+        not_computors = set(identities) - set(self.computor_identities)
+        return set(identities) - set(not_computors)
 
 
 identity_manager = IdentityManager()

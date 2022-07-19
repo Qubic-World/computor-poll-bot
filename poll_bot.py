@@ -73,6 +73,7 @@ async def on_ready():
     await role_manager.reassign_roles()
 
     # Starting qubic-netwrok
+    global network_task
     network_task = asyncio.create_task(network.start())
 
 

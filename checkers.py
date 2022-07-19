@@ -1,5 +1,5 @@
 
-from discord import User
+from discord import User, Member
 from discord.ext.commands import Context
 from discord.utils import get
 
@@ -22,10 +22,13 @@ async def is_user_in_guild(ctx: Context):
     """Whether the user belongs to the guild the bot is in
     """
     user = ctx.author
-    if isinstance(user, User) == False:
-        return False
+    if isinstance(user, User):
+        guilds=user.mutual_guilds
+    elif isinstance(user, Member):
+        guilds=[user.guild]
 
-    result = get(user.mutual_guilds, id=get_guild_id()) != None
+
+    result = get(guilds, id=get_guild_id()) != None
     if result == False:
         guild = get_guild(ctx.bot)
         await ctx.send(f"You are not a member of {guild.name}")
