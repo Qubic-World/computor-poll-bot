@@ -117,7 +117,7 @@ class RegisterCog(commands.Cog):
 
     @commands.command()
     @commands.check(is_user_in_guild)
-    async def index(self, ctx, id:str):
+    async def index(self, ctx, id: str):
         """
         Displays the ID index. The first index is 0
 
@@ -129,13 +129,14 @@ class RegisterCog(commands.Cog):
     async def __index(self, ctx: Context, id: str):
         try:
             index = identity_manager.identity.index(id)
-            message = f"Your index: {index}"
+            if index < 676:
+                h = chr(int(index / 26) + 65)
+                l = chr((index % 26) + 65)
+                message = f"Your index: {h+l}"
+            else:
+                message = "Your ID is not a computor"
         except ValueError:
             index = None
             message = "You id was not found"
 
         await ctx.reply(message)
-
-        
-
-        
