@@ -1,10 +1,10 @@
 import asyncio
 import os
 
-from checkers import is_bot_channel, is_user_in_guild
+from checkers import is_user_in_guild
 from data.identity import identity_manager
 from data.users import user_data
-from discord import Client, DMChannel, Embed, User
+from discord import Client, DMChannel, Embed
 from discord.ext import commands
 from discord.ext.commands import Context
 from utils.botutils import get_username_with_discr
@@ -38,8 +38,14 @@ class RegisterCog(commands.Cog):
         delete_after = None if is_dm else 10
 
         if is_dm:
-            l = len(user_data.get_user_identities(ctx.author.id))
-            e.add_field(name="Your IDs are registered", value=l, inline=False)
+            user_identities = user_data.get_user_identities(ctx.author.id)
+            all_len = len(user_identities)
+            only_comp_len = len(identity_manager.get_only_computor_identities(
+                user_identities))
+
+            e.add_field(name="Your IDs are registered:\nTotal ID",
+                        value=all_len)
+            e.add_field(name=u"\u200b\nAre computors", value=only_comp_len)
 
         await ctx.reply(embed=e, delete_after=delete_after)
 
