@@ -4,7 +4,7 @@ import os
 from checkers import is_bot_channel, is_user_in_guild
 from data.identity import identity_manager
 from data.users import user_data
-from discord import Client, Embed
+from discord import Client, DMChannel, Embed, User
 from discord.ext import commands
 from discord.ext.commands import Context
 from utils.botutils import get_username_with_discr
@@ -21,7 +21,7 @@ class RegisterCog(commands.Cog):
         self.__bot = bot
 
     @commands.command(aliases=["reg_stats"])
-    @commands.check(is_bot_channel)
+    @commands.check(is_user_in_guild)
     async def reg_data(self, ctx: Context):
         """Prints the number of registered users and IDs
         """
@@ -30,9 +30,18 @@ class RegisterCog(commands.Cog):
     async def __reg_data(self, ctx: Context):
         users = len(user_data.get_all_users())
         identities = len(user_data.get_all_identities())
+        description = f"Users: {users}{os.linesep}IDs: {identities}"
         e = Embed(title="Total registered",
-                  description=f"Users: {users}{os.linesep}IDs: {identities}")
-        await ctx.reply(embed=e, delete_after=10)
+                  description=description)
+
+        is_dm = isinstance(ctx.channel, DMChannel)
+        delete_after = None if is_dm else 10
+
+        if is_dm:
+            l = len(user_data.get_user_identities(ctx.author.id))
+            e.add_field(name="Your IDs are registered", value=l, inline=False)
+
+        await ctx.reply(embed=e, delete_after=delete_after)
 
     @commands.command(name='register')
     @commands.dm_only()

@@ -1,11 +1,10 @@
 
-from discord import User, Member
+from discord import Member, User
 from discord.ext.commands import Context
 from discord.utils import get
 
 from utils.botutils import (get_channel_id, get_guild, get_guild_id,
-                            get_poll_channel_id, get_role, get_role_by_context,
-                            get_role_name)
+                            get_poll_channel_id, get_role, get_role_name)
 
 
 async def is_bot_channel(ctx):
@@ -23,10 +22,9 @@ async def is_user_in_guild(ctx: Context):
     """
     user = ctx.author
     if isinstance(user, User):
-        guilds=user.mutual_guilds
+        guilds = user.mutual_guilds
     elif isinstance(user, Member):
-        guilds=[user.guild]
-
+        guilds = [user.guild]
 
     result = get(guilds, id=get_guild_id()) != None
     if result == False:
