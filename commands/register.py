@@ -50,7 +50,6 @@ class RegisterCog(commands.Cog):
         await ctx.reply(embed=e, delete_after=delete_after)
 
     @commands.command(name='register')
-    @commands.dm_only()
     @commands.check(is_user_in_guild)
     async def register(self, ctx, *, json):
         """User registration
@@ -68,6 +67,12 @@ class RegisterCog(commands.Cog):
     async def __register(self, ctx: commands.Context, json, unregister: bool = False):
         """User registration
         """
+
+        # DM only
+        if not isinstance(ctx.channel, DMChannel):
+            await ctx.reply(f"{'Registration' if unregister == False else 'Deregistration'} is only available through the bot's private messages", delete_after=10)
+            return
+
         result = is_valid_message(json)
         if result[0] == False:
             await ctx.reply(result[1])
@@ -117,8 +122,7 @@ class RegisterCog(commands.Cog):
 
         await asyncio.gather(user_data.save_to_file(), ctx.reply(result[1]))
 
-    @commands.command()
-    @commands.dm_only()
+    @commands.command(aliases=["deregister"])
     @commands.check(is_user_in_guild)
     async def unregister(self, ctx, *, json):
         """Unregister ID
