@@ -19,15 +19,7 @@ def is_valid_identity(identity: str):
     return identity.isalpha() and len(identity) == 70 and identity != IVALID_IDENTITY
 
 
-def is_valid_message(message):
-    try:
-        json_message = json.loads(message)
-    except Exception as e:
-        return (False, "Unvalid json")
-
-    if type(json_message) is list:
-        json_message = json_message[0]
-
+def is_valid_json(json_message: dict):
     """Identity field
     """
     try:
@@ -75,21 +67,19 @@ def is_valid_message(message):
     return (True, "Good!")
 
 
-def get_identity_list(message: str) -> list:
+def get_identity_list_from_json(json_data: dict) -> list:
     identity_list = []
     try:
-        json_obj = json.loads(message)
-        identity_list.append(json_obj[IDENTITY_FIELD])
+        identity_list.append(json_data[IDENTITY_FIELD])
     except Exception as e:
         return (False, "Unvalid json")
 
     return identity_list
 
 
-def get_username_from_message(message: str) -> str:
+def get_username_from_json(json_data: dict) -> str:
     try:
-        json_obj = json.loads(message)
-        message_value = json_obj[MESSAGE_FIELD]
+        message_value = json_data[MESSAGE_FIELD]
         m = USERNAME_RE.match(message_value)
         if m != None:
             g = m.groups()

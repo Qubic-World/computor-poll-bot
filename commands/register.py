@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 
 from checkers import is_user_in_guild
@@ -8,8 +9,8 @@ from discord import Client, DMChannel, Embed
 from discord.ext import commands
 from discord.ext.commands import Context
 from utils.botutils import get_username_with_discr
-from utils.message import (get_identity_list, get_username_from_message,
-                           is_valid_message)
+from utils.message import (get_identity_list_from_json, get_username_from_json,
+                           is_valid_json)
 from verify.user import get_member_by_username, get_user_id_from_username
 
 from commands.pool import pool_commands
@@ -64,7 +65,7 @@ class RegisterCog(commands.Cog):
         await pool_commands.add_command(self.__register, ctx, json, False)
 
     # Executing from pool
-    async def __register(self, ctx: commands.Context, json, unregister: bool = False):
+    async def __register(self, ctx: commands.Context, json_raw, unregister: bool = False):
         """User registration
         """
 
@@ -73,54 +74,76 @@ class RegisterCog(commands.Cog):
             await ctx.reply(f"{'Registration' if unregister == False else 'Deregistration'} is only available through the bot's private messages", delete_after=10)
             return
 
-        result = is_valid_message(json)
-        if result[0] == False:
-            await ctx.reply(result[1])
-            return
-
-        username = get_username_from_message(json)
-        if len(username) <= 0:
-            await ctx.reply("Failed to retrieve username from message field")
-            return
-
-        member = get_member_by_username(self.__bot, username)
-        error_message = ""
-        if member == None:
-            error_message = "Unable to find the user"
-        elif get_username_with_discr(ctx.author) != username:
-            error_message = "The request must include your username"
-
-        if len(error_message) > 0:
-            await ctx.reply(error_message)
-            return
-
         try:
-            message = str()
-            user_id = get_user_id_from_username(self.__bot, username)
-            if user_id == None:
-                message = str("Unable to find the user")
-        except ValueError as e:
-            message = str("Error: " + str(e))
-        finally:
-            if len(message) > 0:
-                await ctx.reply(message)
-                return
-
-        if unregister == False:
-            identity_list = get_identity_list(json)
-            found_user_id = user_data.is_identity_exist(identity_list[0])
-            if found_user_id == None:
-                result = await user_data.add_data(user_id, identity_list)
-            else:
-                result = (False, "This ID is already registered")
-        else:
-            result = await user_data.delete_identities(user_id, set(get_identity_list(json)))
-
-        if result[0] == False:
-            await ctx.reply(result[1])
+            json_data = json.loads(json_raw)
+        except Exception as e:
+            await ctx.reply("Unvalid json")
             return
 
-        await asyncio.gather(user_data.save_to_file(), ctx.reply(result[1]))
+        if not isinstance(json_data, list):
+            json_messages = [json_data]
+        else:
+            json_messages = json_data
+
+        is_need_save = False
+        for json_message in json_messages:
+
+            result = is_valid_json(json_message)
+            if result[0] == False:
+                await ctx.reply(u"{}\n```{}```".format(result[1], json.dumps(json_message, indent=4)))
+                continue
+
+            username = get_username_from_json(json_message)
+            if len(username) <= 0:
+                await ctx.reply(u"Failed to retrieve username from message field\n```{}```".format(json_message))
+                continue
+
+            member = get_member_by_username(self.__bot, username)
+            error_message = ""
+            if member == None:
+                error_message = "Unable to find the user"
+            elif get_username_with_discr(ctx.author) != username:
+                error_message = "The request must include your username"
+
+            if len(error_message) > 0:
+                await ctx.reply(u"{}\n```{}```".format(error_message, json_message))
+                continue
+
+            try:
+                message = str()
+                user_id = get_user_id_from_username(self.__bot, username)
+                if user_id == None:
+                    message = str("Unable to find the user")
+            except ValueError as e:
+                message = str("Error: " + str(e))
+            finally:
+                if len(message) > 0:
+                    await ctx.reply(message)
+                    continue
+
+            # Registration
+            if unregister == False:
+                identity_list = get_identity_list_from_json(json_message)
+                found_user_id = user_data.is_identity_exist(identity_list[0])
+                if found_user_id == None:
+                    result = await user_data.add_data(user_id, identity_list)
+                else:
+                    result = (False, "This ID is already registered")
+            # Deregistration
+            else:
+                result = await user_data.delete_identities(user_id, set(get_identity_list_from_json(json_message)))
+
+            if result[0] == False:
+                await ctx.reply(u'{}\n{}'.format(result[1], json_message))
+                continue
+
+            is_need_save = True
+
+            await ctx.reply(u'{}\n{}'.format(result[1], json_message))
+
+        if is_need_save:
+            await user_data.save_to_file()
+            # await asyncio.gather(user_data.save_to_file(), ctx.reply(result[1]))
 
     @commands.command(aliases=["deregister"])
     @commands.check(is_user_in_guild)
