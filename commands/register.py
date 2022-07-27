@@ -33,7 +33,7 @@ class RegisterCog(commands.Cog):
         all_identities = user_data.get_all_identities()
         identities = len(all_identities)
         comutor_ids_len = len(identity_manager.get_only_computor_identities(all_identities))
-        description = f"Users: {users}{os.linesep}IDs: {identities}{os.linesep}Comutor IDs: {comutor_ids_len}"
+        description = f"Users: {users}{os.linesep}IDs: {identities}{os.linesep}Computor IDs: {comutor_ids_len}"
         e = Embed(title="Total registered",
                   description=description)
 
