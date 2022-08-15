@@ -27,7 +27,10 @@ class PoolCommands():
                 kwargs = func_tuple[2]
 
                 if iscoroutinefunction(func):
-                    await func(*args, **kwargs)
+                    try:
+                        await asyncio.wait_for(func(*args, **kwargs), 5)
+                    except asyncio.TimeoutError as e:
+                        logging.warning('PoolCommands.execute: timeout')
                 else:
                     func(*args, **kwargs)
 
