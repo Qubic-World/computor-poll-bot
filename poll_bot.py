@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 from typing import Optional
 
@@ -125,4 +126,5 @@ def main():
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     main()

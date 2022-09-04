@@ -4,7 +4,8 @@ async-timeout==3.0.1
 attrs==21.4.0
 autopep8==1.6.0
 chardet==4.0.0
-discord-components==2.1.2
+#discord-components==2.1.2
+git+https://github.com/kiki7000/discord.py-components.git@master
 discord.py==1.7.3
 idna==3.3
 multidict==6.0.2

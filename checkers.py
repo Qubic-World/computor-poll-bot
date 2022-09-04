@@ -1,4 +1,5 @@
 
+import logging
 from discord import Member, User
 from discord.ext.commands import Context
 from discord.utils import get
@@ -22,12 +23,20 @@ async def is_user_in_guild(ctx: Context):
     """
     user = ctx.author
     if isinstance(user, User):
+        logging.info('is_user_in_guild: User')
         guilds = user.mutual_guilds
     elif isinstance(user, Member):
+        logging.info('is_user_in_guild: Member')
         guilds = [user.guild]
 
-    result = get(guilds, id=get_guild_id()) != None
+    logging.info(f'Guilds: {", ".join([guild.name for guild in guilds])} ')
+
+    guild_id = get_guild_id()
+    result = get(guilds, id=guild_id) != None
     if result == False:
+        logging.info("You are not a member")
+        logging.info(f'Guild id: {guild_id}')
+        logging.info(f'Guild ids: {", ".join([guild.id for guild in guilds])} ')
         guild = get_guild(ctx.bot)
         await ctx.send(f"You are not a member of {guild.name}")
 

@@ -21,18 +21,28 @@ class RegisterCog(commands.Cog):
         super().__init__()
         self.__bot = bot
 
+    @commands.command()
+    @commands.check(is_user_in_guild)
+    async def voted(self, ctx: Context):
+        await pool_commands.add_command(self.__voted, ctx)
+
+    async def __voted(self, ctx: Context):
+        pass
+
     @commands.command(aliases=["reg_stats"])
     @commands.check(is_user_in_guild)
     async def reg_data(self, ctx: Context):
         """Prints the number of registered users and IDs
         """
-        await pool_commands.add_command(self.__reg_data, ctx)
+        # await pool_commands.add_command(self.__reg_data, ctx)
+        await self.__reg_data(ctx)
 
     async def __reg_data(self, ctx: Context):
         users = len(user_data.get_all_users())
         all_identities = user_data.get_all_identities()
         identities = len(all_identities)
-        comutor_ids_len = len(identity_manager.get_only_computor_identities(all_identities))
+        comutor_ids_len = len(
+            identity_manager.get_only_computor_identities(all_identities))
         description = f"Users: {users}{os.linesep}IDs: {identities}{os.linesep}Computor IDs: {comutor_ids_len}"
         e = Embed(title="Total registered",
                   description=description)
@@ -168,7 +178,8 @@ class RegisterCog(commands.Cog):
         Example:
         /index BPFJANADOGBDLNNONDILEMAICAKMEEGBFPJBKPBCEDFJIALDONODMAIMDBFKCFEEMEOLFK
         """
-        await pool_commands.add_command(self.__index, ctx, id)
+        # await pool_commands.add_command(self.__index, ctx, id)
+        await self.__index(ctx, id)
 
     async def __index(self, ctx: Context, id: str):
         try:
