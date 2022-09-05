@@ -4,9 +4,7 @@ from typing import Optional
 from nats.aio.client import Client
 
 
-class custom_nats():
-    __TIMEOUT = 5
-
+class Nats():
     __instance = None
 
     def __new__(cls):
@@ -21,53 +19,48 @@ class custom_nats():
             nats_host = os.getenv("NATS_HOST", 'localhost')
             nats_port = os.getenv("NATS_PORT", '4222')
 
-            cls.__instance = super(custom_nats, cls).__new__(cls)
+            cls.__instance = super(Nats, cls).__new__(cls)
 
-            cls.__nc = Optional[Client]
+            cls.__nc: Optional[Client] = None
             cls.__host = nats_host
             cls.__port = nats_port
 
         return cls.__instance
 
-    @classmethod
     @property
-    def is_connected(cls):
-        return cls.__nc and cls.__nc.is_connected
+    def is_connected(self):
+        return self.__nc and self.__nc.is_connected
 
-    @classmethod
     @property
-    def is_closed(cls):
-        return cls.__nc is None or cls.__nc.is_closed
+    def is_closed(self):
+        return self.__nc is None or self.__nc.is_closed
 
-    @classmethod
-    async def connect(cls):
+    async def connect(self):
         import nats
         from nats import errors
         from asyncio import TimeoutError
 
-        if cls.is_connected:
-            return cls.__nc
+        if self.is_connected:
+            return self.__nc
 
         try:
-            cls.__nc = await nats.connect(f'{cls.__host}:{cls.__port}')
+            self.__nc = await nats.connect(f'{self.__host}:{self.__port}')
         except (OSError, errors.Error, TimeoutError, errors.NoServersError) as e:
             logging.error(e)
             return None
 
-        return cls.__nc
+        return self.__nc
 
-    @classmethod
-    async def close(cls):
-        if cls.is_closed:
+    async def close(self):
+        if self.is_closed:
             return
 
-        await cls.__nc.close()
-        cls.__nc = None
+        await self.__nc.close()
+        self.__nc = None
 
-    @classmethod
-    async def drain(cls):
-        if cls.is_closed:
+    async def drain(self):
+        if self.is_closed:
             return
 
-        await cls.__nc.drain()
-        cls.__nc = None
+        await self.__nc.drain()
+        self.__nc = None

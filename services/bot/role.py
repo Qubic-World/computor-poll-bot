@@ -1,5 +1,4 @@
 import asyncio
-from curses import has_colors
 import logging
 import traceback
 
