@@ -90,12 +90,13 @@ async def main():
         task = asyncio.create_task(poll_bot.start(
             token, bot=True, reconnect=True))
         del token
-        await task
+        await asyncio.wait({task})
     except KeyboardInterrupt:
         print("Waiting for the tasks in the pool to be completed")
         await pool_commands.stop()
         await identity_manager.stop()
         await poll_bot.close()
+        await nc.drain()
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)

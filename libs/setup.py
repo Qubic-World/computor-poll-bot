@@ -7,5 +7,6 @@ setup(
     install_requires=[
         'nats-py',
         'python-dotenv'
-    ]
+    ],
+    package_data={'qubic_verify':['linux/*.so', 'win64/*.dll', 'win64/*.exp', 'win64/*.lib']}
 )

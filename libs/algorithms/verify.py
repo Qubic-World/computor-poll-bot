@@ -4,10 +4,15 @@ from sys import platform
 
 
 def get_qubic_verify_dll():
+    import os
     if platform == "linux" or platform == "linux2":
-        return CDLL(r"libs/qubic_verify/linux/libqubic_verify.so")
+        from qubic_verify import linux
+
+        return CDLL(os.path.join(os.path.dirname(linux.__file__), "libqubic_verify.so"))
     elif platform == "win32":
-        return CDLL(r"libs/qubic_verify/win64/qubic_verify.dll")
+        from qubic_verify import win64
+
+        return CDLL(os.path.join(os.path.dirname(win64.__file__), "qubic_verify.dll"))
 
     return None
 
