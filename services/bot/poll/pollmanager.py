@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 from typing import Optional
 from uuid import UUID, uuid4
 
@@ -297,12 +298,13 @@ class Poll():
     def add_recount_callback(self, function):
         self.__recount_callback.add(function)
 
+FILE_NAME = 'poll_cache.data'
 
 class PollCog(commands.Cog):
     def __init__(self, bot) -> None:
         self.__bot: Client = bot
         self.__poll_list = []
-        self.__cache_file = r"./data_files/poll_cache.data"
+        self.__cache_file = os.path.join(os.getenv('DATA_FILES_PATH', './'), FILE_NAME)
 
     @property
     def polls(self):

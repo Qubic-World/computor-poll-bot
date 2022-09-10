@@ -28,12 +28,32 @@ class Nats():
         return cls.__instance
 
     @property
+    def nc(self):
+        return self.__nc
+
+    @property
     def is_connected(self):
-        return self.__nc and self.__nc.is_connected
+        return self.nc is not None and self.nc.is_connected
 
     @property
     def is_closed(self):
-        return self.__nc is None or self.__nc.is_closed
+        return self.nc is None or self.nc.is_closed
+
+    @property
+    def is_disconected(self):
+        return self.nc is None or self.nc.is_closed or self.nc.is_draining or self.nc.is_draining_pubs
+
+    @property
+    def is_connecting(self):
+        return self.nc is not None and self.__nc.is_connecting
+
+    @property
+    def is_reconnecting(self):
+        return self.nc is not None and self.__nc.is_reconnecting
+
+    @property
+    def max_payload(self):
+        return self.nc.max_payload
 
     async def connect(self):
         import nats

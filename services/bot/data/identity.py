@@ -1,13 +1,16 @@
 import asyncio
+import logging
+import os
 import aiofiles
 import ast
 import itertools
 
+FILE_NAME = 'identity.data'
 
 class IdentityManager():
     def __init__(self) -> None:
         self._identity = []
-        self._file_name = "./data_files/identity.data"
+        self._file_name = os.path.join(os.getenv('DATA_FILES_PATH', './'), FILE_NAME) 
         self.__added_callback = set()
         self.__removed_callback = set()
         self.background_task = set()
@@ -50,6 +53,8 @@ class IdentityManager():
             await file.write(str(self._identity))
 
     async def load_from_file(self):
+        logging.info('Loading identities')
+
         try:
             async with aiofiles.open(self._file_name, "r") as file:
                 self._identity = list(ast.literal_eval(await file.read()))

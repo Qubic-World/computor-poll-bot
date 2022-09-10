@@ -39,8 +39,11 @@ role_manager = RoleManager(user_data, poll_bot)
 __nc: Optional[Client] = None
 
 class HandlerWaitBroadcastComputors(Handler):
+    def __init__(self, nc) -> None:
+        super().__init__(nc)
+
     async def get_sub(self):
-        return await __nc.subscribe(Subjects.BROADCAST_COMPUTORS)
+        return await self._nc.nc.subscribe(Subjects.BROADCAST_COMPUTORS)
 
     async def _handler_msg(self, msg):
         from qubic.qubicutils import get_identities_from_computors
@@ -57,7 +60,6 @@ class HandlerWaitBroadcastComputors(Handler):
         identity_manager.apply_identity(identities)
         await identity_manager.save_to_file()
 
-        
 
 """Commands
 """
@@ -87,29 +89,28 @@ async def on_ready():
     # After starting the bot, reassign the roles
     await role_manager.reassign_roles()
 
-async def main():
+def main():
     # Read from .env
     load_dotenv()
 
-    # nc = asyncio.run(custom_nats.Nats().connect())
+    loop = asyncio.get_event_loop()
+
     global __nc
-    __nc = await custom_nats.Nats().connect()
+    __nc = loop.run_until_complete(custom_nats.Nats().connect())
 
     if __nc is None:
         logging.error('Failed to connect to nats server')
         return
 
     # Creating folder for files
-    if not os.path.isdir("data_files"):
-        os.mkdir("data_files")
+    if not os.path.isdir(os.getenv('DATA_FILES_PATH', './')):
+        os.mkdir(os.getenv('DATA_FILES_PATH', './'))
 
     token = os.environ.get("BOT_ACCESS_TOKEN")
-    # loop = asyncio.get_running_loop()
-
 
     # Loading user data and identities
-    await asyncio.gather(
-        user_data.load_from_file(), identity_manager.load_from_file())
+    loop.run_until_complete(asyncio.wait({
+        loop.create_task(user_data.load_from_file()), loop.create_task(identity_manager.load_from_file())}))
 
     poll_bot.add_check(is_bot_in_guild)
     poll_bot.add_check(has_role_in_guild)
@@ -120,18 +121,21 @@ async def main():
 
         # Running the bot
         tasks = {
-        asyncio.create_task(poll_bot.start(
+        loop.create_task(poll_bot.start(
             token, bot=True, reconnect=True)),
-        asyncio.create_task(HandlerStarter.start(HandlerWaitBroadcastComputors()))
+        loop.create_task(HandlerStarter.start(HandlerWaitBroadcastComputors(nc=custom_nats.Nats())))
         }
-        await asyncio.wait(tasks)
+        loop.run_until_complete(asyncio.wait(tasks))
     except KeyboardInterrupt:
         print("Waiting for the tasks in the pool to be completed")
-        await pool_commands.stop()
-        await identity_manager.stop()
-        await poll_bot.close()
-        await __nc.drain()
+        loop.run_until_complete(pool_commands.stop())
+        loop.run_until_complete(identity_manager.stop())
+        loop.run_until_complete(poll_bot.close())
+        loop.run_until_complete(__nc.drain())
+    finally:
+        if not loop.is_closed():
+            loop.close()
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    asyncio.run(main())
+    main()

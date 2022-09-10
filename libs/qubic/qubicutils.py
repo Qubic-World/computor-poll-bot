@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 from ctypes import sizeof
 from os import getenv
@@ -15,7 +16,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
 
-COMPUTORS_CACHE_PATH = "./data_files/system.data"
+COMPUTORS_CACHE_PATH = os.path.join(os.getenv('DATA_FILES_PATH', './'), 'system.data')
 
 """ IP
 """
@@ -65,7 +66,6 @@ def exchange_public_peers_to_list(exchange_public_peers: ExchangePublicPeers) ->
         ip_list.append(ip_str)
 
     return ip_list
-
 
 def get_protocol_version() -> int:
     try:

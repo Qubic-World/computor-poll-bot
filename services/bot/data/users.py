@@ -2,17 +2,19 @@ import asyncio
 import itertools
 import json
 import logging
+import os
 
 import aiofiles
 
 USER_DATA_FIELD = "user_data"
+USER_DATA_FILE_NAME = 'userdata.json'
 
 
 class UserData():
     def __init__(self) -> None:
         self._user_data = dict()
         self.reset()
-        self._json_file_name = "./data_files/userdata.json"
+        self._json_file_name = os.path.join(os.getenv('DATA_FILES_PATH', './'), USER_DATA_FILE_NAME)
         self._new_identities_callbacks = set()
         self.__removed_identities_callback = set()
         self.background_task = set()
@@ -88,6 +90,8 @@ class UserData():
             await file.write(json.dumps(self._user_data, indent=4))
 
     async def load_from_file(self):
+        logging.info('Loading user data')
+        logging.info(f'file path: {self._json_file_name}')
         try:
             async with aiofiles.open(self._json_file_name, "r") as file:
                 self._user_data = json.loads(await file.read())

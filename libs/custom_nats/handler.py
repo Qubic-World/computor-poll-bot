@@ -38,7 +38,6 @@ class Handler():
             while not sub._closed and not self._nc.is_disconected:
                 msg = await self._wait_msg(sub)
                 if msg is None:
-                    self._warning('msg is None')
                     continue
 
                 await self._handler_msg(msg)

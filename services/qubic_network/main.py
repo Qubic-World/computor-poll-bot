@@ -14,14 +14,23 @@ async def publish_data(header_type: int, data: Any):
         logging.error('Failed to connect to Nats')
         return
 
+    logging.debug('publish_data')
+
     if header_type == BROADCAST_COMPUTORS and isinstance(data, Computors):
+        logging.debug('broadcast')
         payload = bytes(data)
         
         await nc.publish(Subjects.BROADCAST_COMPUTORS, payload=payload)
     elif header_type == EXCHANGE_PUBLIC_PEERS and isinstance(data, ExchangePublicPeers):
+        logging.debug('public_peers')
         payload = bytes(data)
 
-        await nc.publish(Subjects.EXCHANGE_PUBLIC_PEERS, payload=payload)
+        try:
+            await nc.publish(Subjects.EXCHANGE_PUBLIC_PEERS, payload=payload)
+        except asyncio.CancelledError as e:
+            raise e
+        except Exception as e:
+            logging.warning(e)
 
 
 async def main():
@@ -31,19 +40,13 @@ async def main():
         logging.error('Failed to connect to Nats')
         return
 
-    qubic = QubicNetworkManager(["213.127.147.70",
-                               "83.57.175.137",
-                               "178.172.194.130",
-                               "82.114.88.225",
-                               "82.223.197.126",
-                               "82.223.165.100",
-                               "85.215.98.91",
-                               "212.227.149.43"])
+    qubic = QubicNetworkManager(["93.125.105.208", "178.172.194.154", "91.43.75.241", "178.172.194.148", "178.172.194.130",
+			"178.172.194.150", "178.172.194.147"])
 
     qubic.add_callback(publish_data)
 
     try:
-        await asyncio.wait(qubic.start())
+        await qubic.start()
     finally:
         await qubic.stop()
 

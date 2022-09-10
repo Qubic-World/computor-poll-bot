@@ -33,6 +33,10 @@ class QubicNetworkManager():
                 self._know_ip.add(ip)
 
     @property
+    def know_ip(self):
+        return self._know_ip
+
+    @property
     def connection_timeout(self) -> int:
         return 15
 
@@ -209,6 +213,9 @@ class Peer():
     async def handshake(self):
         """When connecting to a peer we exchange public peers. 
         """
+        import random
+        from qubic.qubicdata import NUMBER_OF_EXCHANGED_PEERS
+        from qubic.qubicutils import ip_to_ctypes
         print("Handshake")
         if not self.__writer.is_closing():
             # TODO: add public peers
@@ -220,6 +227,11 @@ class Peer():
             header.protocol = ctypes.c_ushort(
                 get_protocol_version())
             header.type = EXCHANGE_PUBLIC_PEERS
+
+            know_ip = self.__qubic_manager.know_ip
+            random_ip_list = random.sample(know_ip, min(len(know_ip), NUMBER_OF_EXCHANGED_PEERS))
+            for i in range(0, NUMBER_OF_EXCHANGED_PEERS):
+                exchange_public_peers.peers[i] = ip_to_ctypes(random_ip_list[i])
 
             try:
                 await self.send_data(bytes(header) + bytes(exchange_public_peers))

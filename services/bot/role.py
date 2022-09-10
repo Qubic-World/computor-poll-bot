@@ -80,7 +80,8 @@ class RoleManager():
             tasks.append(asyncio.create_task(
                 self.__set_role_to_member(member[0], member[1])))
 
-        await asyncio.wait(tasks)
+        if len(tasks) > 0:
+            await asyncio.wait(tasks)
 
     async def reassing_role(self, user_id: int, *args):
         """Reassigning the role if the status of the ID computor has changed
