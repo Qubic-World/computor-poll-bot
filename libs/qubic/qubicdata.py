@@ -30,6 +30,7 @@ class ConnectionState(Enum):
 
 class Subjects:
     BROADCAST_COMPUTORS = 'qubic.data.broadcast_computors'
+    EXCHANGE_PUBLIC_PEERS ='qubic.data.exchange_public_peers' 
 
 
 """Network packages

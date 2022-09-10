@@ -3,22 +3,25 @@ import logging
 from typing import Any
 from custom_nats.custom_nats import Nats
 
-from qubic.qubicdata import Computors, Subjects
+from qubic.qubicdata import Computors, Subjects, ExchangePublicPeers
 from manager import QubicNetworkManager
-from qubic.qubicdata import BROADCAST_COMPUTORS
+from qubic.qubicdata import BROADCAST_COMPUTORS, EXCHANGE_PUBLIC_PEERS
 
 
-async def publish_data(type: int, data: Any):
+async def publish_data(header_type: int, data: Any):
     nc = await Nats().connect()
     if nc is None:
         logging.error('Failed to connect to Nats')
         return
 
     if type == BROADCAST_COMPUTORS and isinstance(data, Computors):
-        computors: Computors = data
-        payload = bytes(computors)
+        payload = bytes(data)
         
         await nc.publish(Subjects.BROADCAST_COMPUTORS, payload=payload)
+    elif type == EXCHANGE_PUBLIC_PEERS and isinstance(data, ExchangePublicPeers):
+        payload = bytes(data)
+
+        await nc.publish(Subjects.EXCHANGE_PUBLIC_PEERS, payload=payload)
 
 
 async def main():
@@ -37,7 +40,7 @@ async def main():
                                "85.215.98.91",
                                "212.227.149.43"])
 
-    qubic.add_callback
+    qubic.add_callback(publish_data)
 
     try:
         await asyncio.wait(qubic.start())

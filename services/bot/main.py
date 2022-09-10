@@ -1,17 +1,23 @@
 import asyncio
 import logging
 import os
+from ctypes import sizeof
+from typing import Optional
 
-from checkers import has_role_in_guild, is_bot_in_guild
-from commands.pool import pool_commands
-from commands.register import RegisterCog
 from custom_nats import custom_nats
-from data.identity import identity_manager
-from data.users import user_data
+from custom_nats.handler import Handler, HandlerStarter
 from discord import Intents
 from discord.ext import commands
 from discord_components import DiscordComponents
 from dotenv import load_dotenv
+from nats.aio.client import Client
+from qubic.qubicdata import Computors, Subjects
+
+from checkers import has_role_in_guild, is_bot_in_guild
+from commands.pool import pool_commands
+from commands.register import RegisterCog
+from data.identity import identity_manager
+from data.users import user_data
 from poll.pollmanager import PollCog
 from role import RoleManager
 
@@ -27,9 +33,34 @@ DiscordComponents(poll_bot)
 """
 role_manager = RoleManager(user_data, poll_bot)
 
-"""Commands
+"""Nats
 """
 
+__nc: Optional[Client] = None
+
+class HandlerWaitBroadcastComputors(Handler):
+    async def get_sub(self):
+        return await __nc.subscribe(Subjects.BROADCAST_COMPUTORS)
+
+    async def _handler_msg(self, msg):
+        from qubic.qubicutils import get_identities_from_computors
+        if msg is None or msg.data is None:
+            return
+
+        data = msg.data
+        if len(data) != sizeof(Computors):
+            logging.warning(f'{HandlerWaitBroadcastComputors.__name__}: the size of the data does not match the size of the {Computors.__name__} structure')
+            return
+
+        computors: Computors = Computors.from_buffer_copy(data)
+        identities = get_identities_from_computors(computors=computors)
+        identity_manager.apply_identity(identities)
+        await identity_manager.save_to_file()
+
+        
+
+"""Commands
+"""
 
 @poll_bot.event
 async def on_ready():
@@ -61,9 +92,10 @@ async def main():
     load_dotenv()
 
     # nc = asyncio.run(custom_nats.Nats().connect())
-    nc = await custom_nats.Nats().connect()
+    global __nc
+    __nc = await custom_nats.Nats().connect()
 
-    if nc is None:
+    if __nc is None:
         logging.error('Failed to connect to nats server')
         return
 
@@ -87,16 +119,18 @@ async def main():
         pool_commands.start()
 
         # Running the bot
-        task = asyncio.create_task(poll_bot.start(
-            token, bot=True, reconnect=True))
-        del token
-        await asyncio.wait({task})
+        tasks = {
+        asyncio.create_task(poll_bot.start(
+            token, bot=True, reconnect=True)),
+        asyncio.create_task(HandlerStarter.start(HandlerWaitBroadcastComputors()))
+        }
+        await asyncio.wait(tasks)
     except KeyboardInterrupt:
         print("Waiting for the tasks in the pool to be completed")
         await pool_commands.stop()
         await identity_manager.stop()
         await poll_bot.close()
-        await nc.drain()
+        await __nc.drain()
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)

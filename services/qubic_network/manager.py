@@ -49,11 +49,11 @@ class QubicNetworkManager():
     def add_callback(self, callback):
         self.__callbacks.add_callback(callback=callback)
 
-    def __data_from_peer(self, type: int, data: Any):
+    def __data_from_peer(self, header_type: int, data: Any):
         """
         Send data from peers to listeners
         """
-        self.__callbacks.execute(type=type, data=data)
+        self.__callbacks.execute(header_type=header_type, data=data)
 
     def __connect_to_peer(self, ip: str):
         if is_valid_ip(ip):
@@ -282,6 +282,7 @@ class Peer():
                     raw_payload)
                 self.__qubic_manager.add_ip(
                     set(exchange_public_peers_to_list(exchange_public_peers)))
+                self.__callbacks.execute(header_type=EXCHANGE_PUBLIC_PEERS, data=exchange_public_peers)
 
             if header_type == BROADCAST_COMPUTORS:
                 print("BROADCAST_COMPUTORS")

@@ -1,12 +1,15 @@
-from algorithms.verify import  kangaroo_twelve, verify
-from qubic.qubicdata import (ADMIN_PUBLIC_KEY, SIGNATURE_SIZE, Computors,
-                             ExchangePublicPeers, RequestResponseHeader, c_ip_type, computors_system_data)
 import os
 import sys
 from ctypes import sizeof
 from os import getenv
 
 import aiofiles
+from algorithms.verify import get_identity, kangaroo_twelve, verify
+
+from qubic.qubicdata import (ADMIN_PUBLIC_KEY, EMPTY_PUBLIC_KEY,
+                             SIGNATURE_SIZE, Computors, ExchangePublicPeers,
+                             RequestResponseHeader, c_ip_type,
+                             computors_system_data)
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
@@ -135,6 +138,17 @@ async def load_cache_computors():
             return
         global computors_system_data
         computors_system_data = Computors.from_buffer_copy(b)
+
+
+def get_identities_from_computors(computors: Computors):
+    identities = []
+    raw_public_key_list = list(bytes(computors.public_keys))
+    for idx in range(0, len(raw_public_key_list), 32):
+        public_key = bytes(computors.public_keys[idx: idx + 32])
+        if public_key != EMPTY_PUBLIC_KEY:
+            identities.append(get_identity(public_key))
+
+    return identities
 
 
 async def apply_computors_data(computors: Computors):
