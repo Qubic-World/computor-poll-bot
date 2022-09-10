@@ -4,16 +4,18 @@ import logging
 from ctypes import sizeof
 from os import getenv
 from random import shuffle
-from typing import Optional
+from typing import Any, Optional
 
 from qubic.qubicdata import (BROADCAST_COMPUTORS, EXCHANGE_PUBLIC_PEERS,
                              Computors, ConnectionState, ExchangePublicPeers,
                              RequestResponseHeader)
-from qubic.qubicutils import (apply_computors_data,
+from qubic.qubicutils import (apply_computors_data, can_apply_computors_data,
                               exchange_public_peers_to_list,
                               get_header_from_bytes, get_protocol_version,
                               get_raw_payload, is_valid_broadcast_computors,
                               is_valid_header, is_valid_ip)
+
+from utils.callback import Callbacks
 
 
 class QubicNetworkManager():
@@ -23,11 +25,16 @@ class QubicNetworkManager():
         self._peers = set()
         self._backgound_tasks = []
         self.__connection_state: ConnectionState = ConnectionState.NONE
+        self.__callbacks = Callbacks()
 
     def add_ip(self, ip_set: set):
         for ip in ip_set:
             if is_valid_ip(ip):
                 self._know_ip.add(ip)
+
+    @property
+    def know_ip(self):
+        return self._know_ip
 
     @property
     def connection_timeout(self) -> int:
@@ -43,10 +50,21 @@ class QubicNetworkManager():
 
         return int(value)
 
+    def add_callback(self, callback):
+        self.__callbacks.add_callback(callback=callback)
+
+    def __data_from_peer(self, header_type: int, data: Any):
+        """
+        Send data from peers to listeners
+        """
+        self.__callbacks.execute(header_type=header_type, data=data)
+
     def __connect_to_peer(self, ip: str):
         if is_valid_ip(ip):
             peer = Peer(self)
             self._peers.add(peer)
+            peer.add_callback(self.__data_from_peer)
+
             task = asyncio.create_task(peer.connect(
                 ip, self.port, self.connection_timeout))
             task.add_done_callback(self._backgound_tasks.remove)
@@ -108,6 +126,8 @@ class QubicNetworkManager():
         for task in self._backgound_tasks:
             task.cancel()
 
+        await asyncio.sleep(0)
+
         try:
             await asyncio.gather(*self._backgound_tasks, return_exceptions=True)
         except asyncio.CancelledError:
@@ -142,6 +162,7 @@ class Peer():
         self.__ip = ""
         self.__state: ConnectionState = ConnectionState.NONE
         self.__background_tasks = []
+        self.__callbacks = Callbacks()
 
     @property
     def ip(self):
@@ -186,9 +207,15 @@ class Peer():
         self.__background_tasks.append(task)
         await asyncio.gather(task)
 
+    def add_callback(self, callback):
+        self.__callbacks.add_callback(callback=callback)
+
     async def handshake(self):
         """When connecting to a peer we exchange public peers. 
         """
+        import random
+        from qubic.qubicdata import NUMBER_OF_EXCHANGED_PEERS
+        from qubic.qubicutils import ip_to_ctypes
         print("Handshake")
         if not self.__writer.is_closing():
             # TODO: add public peers
@@ -200,6 +227,11 @@ class Peer():
             header.protocol = ctypes.c_ushort(
                 get_protocol_version())
             header.type = EXCHANGE_PUBLIC_PEERS
+
+            know_ip = self.__qubic_manager.know_ip
+            random_ip_list = random.sample(know_ip, min(len(know_ip), NUMBER_OF_EXCHANGED_PEERS))
+            for i in range(0, NUMBER_OF_EXCHANGED_PEERS):
+                exchange_public_peers.peers[i] = ip_to_ctypes(random_ip_list[i])
 
             try:
                 await self.send_data(bytes(header) + bytes(exchange_public_peers))
@@ -262,12 +294,15 @@ class Peer():
                     raw_payload)
                 self.__qubic_manager.add_ip(
                     set(exchange_public_peers_to_list(exchange_public_peers)))
+                self.__callbacks.execute(header_type=EXCHANGE_PUBLIC_PEERS, data=exchange_public_peers)
 
             if header_type == BROADCAST_COMPUTORS:
                 print("BROADCAST_COMPUTORS")
                 computors = Computors.from_buffer_copy(raw_payload)
                 if is_valid_broadcast_computors(computors):
-                    await apply_computors_data(computors)
+                    if can_apply_computors_data(computors=computors):
+                        await apply_computors_data(computors)
+                        self.__callbacks.execute(header_type=BROADCAST_COMPUTORS, data=computors)
 
             await self.__qubic_manager.send_other(raw_data, self)
 
