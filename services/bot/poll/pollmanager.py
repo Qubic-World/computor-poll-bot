@@ -173,7 +173,7 @@ class Poll():
 
         def check(interaction):
             user = interaction.user
-            return check_role(user) and check_button(interaction.custom_id) and not is_voted(user.id)
+            return check_role(user) and check_button(interaction.custom_id) #and not is_voted(user.id)
 
         def get_variant_index(interaction):
             """Get the variant number from the button pressed
@@ -204,6 +204,22 @@ class Poll():
                 """Waiting for the button to be clicked
                 """
                 interaction = await self.__bot.wait_for(BUTTON_CLICK_EVENT_NAME, check=check)
+
+                user_id = interaction.user.id
+                logging.debug(f'You id: {user_id}')
+                if is_voted(interaction.user.id):
+                    logging.debug('Voted')
+                    selected_variant = self.__selected_variants.get(user_id, None)
+                    ids = self.__voted_users.get(user_id, None)
+                    if selected_variant is None or ids is None:
+                        # TODO: Add message
+                        continue
+                    try:
+                        await interaction.send(content=f'You voted for option: {selected_variant + 1}{os.linesep}\
+Number of your IDs that took part in the voting: {len(ids)}')
+                    except errors.NotFound as e:
+                        logging.warning(e)
+                    continue
 
                 try:
                     await interaction.send(content=f"You voted for the option: {get_variant(interaction)}")
