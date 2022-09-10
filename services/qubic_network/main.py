@@ -14,11 +14,11 @@ async def publish_data(header_type: int, data: Any):
         logging.error('Failed to connect to Nats')
         return
 
-    if type == BROADCAST_COMPUTORS and isinstance(data, Computors):
+    if header_type == BROADCAST_COMPUTORS and isinstance(data, Computors):
         payload = bytes(data)
         
         await nc.publish(Subjects.BROADCAST_COMPUTORS, payload=payload)
-    elif type == EXCHANGE_PUBLIC_PEERS and isinstance(data, ExchangePublicPeers):
+    elif header_type == EXCHANGE_PUBLIC_PEERS and isinstance(data, ExchangePublicPeers):
         payload = bytes(data)
 
         await nc.publish(Subjects.EXCHANGE_PUBLIC_PEERS, payload=payload)
