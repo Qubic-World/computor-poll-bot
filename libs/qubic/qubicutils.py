@@ -1,8 +1,6 @@
-from data.identity import identity_manager
-from algorithms.verify import get_identity, kangaroo_twelve, verify
-from qubic.qubicdata import (EMPTY_PUBLIC_KEY, ADMIN_PUBLIC_KEY, SIGNATURE_SIZE, Computors,
+from algorithms.verify import  kangaroo_twelve, verify
+from qubic.qubicdata import (ADMIN_PUBLIC_KEY, SIGNATURE_SIZE, Computors,
                              ExchangePublicPeers, RequestResponseHeader, c_ip_type, computors_system_data)
-import asyncio
 import os
 import sys
 from ctypes import sizeof
@@ -141,16 +139,17 @@ async def load_cache_computors():
 
 async def apply_computors_data(computors: Computors):
     if can_apply_computors_data(computors):
-        identity = []
-        raw_public_key_list = list(bytes(computors.public_keys))
-        for idx in range(0, len(raw_public_key_list), 32):
-            public_key = bytes(computors.public_keys[idx: idx + 32])
-            if public_key != EMPTY_PUBLIC_KEY:
-                identity.append(get_identity(public_key))
+        await cache_computors(computors)
+        # identity = []
+        # raw_public_key_list = list(bytes(computors.public_keys))
+        # for idx in range(0, len(raw_public_key_list), 32):
+        #     public_key = bytes(computors.public_keys[idx: idx + 32])
+        #     if public_key != EMPTY_PUBLIC_KEY:
+        #         identity.append(get_identity(public_key))
 
-        identity_manager.apply_identity(identity)
+        # identity_manager.apply_identity(identity)
 
-        # TODO: The identity save to file can be removed, as the public keys are stored in COMPUTORS_CACHE_PATH
-        # await cache_computors(computors)
-        # await identity_manager.save_to_file()
-        await asyncio.gather(cache_computors(computors), identity_manager.save_to_file())
+        # # TODO: The identity save to file can be removed, as the public keys are stored in COMPUTORS_CACHE_PATH
+        # # await cache_computors(computors)
+        # # await identity_manager.save_to_file()
+        # await asyncio.gather(cache_computors(computors), identity_manager.save_to_file())
