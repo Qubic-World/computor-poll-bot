@@ -33,7 +33,7 @@ async def publish_data(header_type: int, data: Any):
         await nc.publish(Subjects.BROADCAST_RESOURCE_TESTING_SOLUTION, bytes(data))
     elif header_type == BROADCAST_TICK and isinstance(data, Tick):
         # logging.debug('BROADCAST_TICK')
-        await nc.publish(Subjects.BROADCAST_TICK, bytes(data))
+        await nc.publish(Subjects.BROADCAST_TICK, payload=bytes(data))
 
 
 async def main():

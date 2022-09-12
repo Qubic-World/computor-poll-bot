@@ -1,0 +1,26 @@
+# For more information, please refer to https://aka.ms/vscode-docker-python
+FROM python:3.10-slim-buster
+
+# Keeps Python from generating .pyc files in the container
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Turns off buffering for easier container logging
+ENV PYTHONUNBUFFERED=1
+
+# VENV
+ENV VIRTUAL_ENV=/app/.venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+# Install pip requirements
+# COPY ./data_files ./
+COPY ./libs /libs
+COPY ./services/data_processing/ /app
+
+RUN python -m venv $VIRTUAL_ENV && \
+    . /app/.venv/bin/activate && \
+    pip install -U pip && \ 
+    pip install -r /app/requirements.txt && \
+    pip install /libs
+
+# RUN adduser -u 5678 --disabled-password --gecos "" appuser && chown -R appuser /app
+# USER appuser
