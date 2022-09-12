@@ -137,3 +137,10 @@ def pretty_signatyre(signature: bytes) -> str:
         signature_str += chr(ord('a') + (s & 0x0F))
 
     return signature_str
+
+def get_score(nonces:bytes, number_of_solution_nonces: int = 1000)->int:
+    get_score_C = qubic_verify_dll.get_score
+    get_score_C.argtypes = [ctypes.c_char_p, ctypes.c_uint16]
+    get_score_C.restype = ctypes.c_uint32
+
+    return get_score_C(ctypes.c_char_p(nonces), number_of_solution_nonces)

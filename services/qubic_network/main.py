@@ -18,21 +18,21 @@ async def publish_data(header_type: int, data: Any):
         logging.error('Failed to connect to Nats')
         return
 
-    logging.debug('publish_data')
-
     if header_type == BROADCAST_COMPUTORS and isinstance(data, Computors):
-        logging.debug('broadcast')
+        # logging.debug('BROADCAST_COMPUTORS')
         payload = bytes(data)
 
         await nc.publish(Subjects.BROADCAST_COMPUTORS, payload=payload)
     elif header_type == EXCHANGE_PUBLIC_PEERS and isinstance(data, ExchangePublicPeers):
-        logging.debug('public_peers')
+        # logging.debug('EXCHANGE_PUBLIC_PEERS')
         payload = bytes(data)
 
         await nc.publish(Subjects.EXCHANGE_PUBLIC_PEERS, payload=payload)
     elif header_type == BROADCAST_RESOURCE_TESTING_SOLUTION and isinstance(data, BroadcastResourceTestingSolution):
+        # logging.debug('BROADCAST_RESOURCE_TESTING_SOLUTION')
         await nc.publish(Subjects.BROADCAST_RESOURCE_TESTING_SOLUTION, bytes(data))
     elif header_type == BROADCAST_TICK and isinstance(data, Tick):
+        # logging.debug('BROADCAST_TICK')
         await nc.publish(Subjects.BROADCAST_TICK, bytes(data))
 
 

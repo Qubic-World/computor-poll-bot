@@ -19,6 +19,7 @@ KEY_SIZE = 32
 c_ip_type = (ctypes.c_uint8 * 4)
 c_nonce_type = (ctypes.c_uint8 * 32)
 c_signature_type = (ctypes.c_uint8 * SIGNATURE_SIZE)
+c_public_key_type = (ctypes.c_uint8 * KEY_SIZE)
 
 ADMIN_ID = "EEDMBLDKFLBNKDPFHDHOOOFLHBDCHNCJMODFMLCLGAPMLDCOAMDDCEKMBBBKHEGGLIAFFK"
 ADMIN_PUBLIC_KEY = get_public_key_from_id(ADMIN_ID)
@@ -73,12 +74,12 @@ class Computors(ctypes.Structure):
 
 
 class ResourceTestingSolution(ctypes.Structure):
-    _fields_ = [('computorPublicKey', ctypes.c_uint8),
+    _fields_ = [('computorPublicKey', c_public_key_type),
                 ('nonces', c_nonce_type * NUMBER_OF_SOLUTION_NONCES)]
 
 
 class BroadcastResourceTestingSolution(ctypes.Structure):
-    _fields_ = ['resourceTestingSolution', ResourceTestingSolution]
+    _fields_ = [('resourceTestingSolution', ResourceTestingSolution)]
 
 
 class Tick(ctypes.Structure):

@@ -6,15 +6,17 @@ from os import getenv
 from random import shuffle
 from typing import Any, Optional
 
-from qubic.qubicdata import (BROADCAST_COMPUTORS, EXCHANGE_PUBLIC_PEERS,
-                             Computors, ConnectionState, ExchangePublicPeers,
-                             RequestResponseHeader)
+from qubic.qubicdata import (BROADCAST_COMPUTORS,
+                             BROADCAST_RESOURCE_TESTING_SOLUTION,
+                             BROADCAST_TICK, EXCHANGE_PUBLIC_PEERS,
+                             BroadcastResourceTestingSolution, Computors,
+                             ConnectionState, ExchangePublicPeers,
+                             RequestResponseHeader, Tick)
 from qubic.qubicutils import (apply_computors_data, can_apply_computors_data,
                               exchange_public_peers_to_list,
                               get_header_from_bytes, get_protocol_version,
                               get_raw_payload, is_valid_broadcast_computors,
                               is_valid_header, is_valid_ip)
-
 from utils.callback import Callbacks
 
 
@@ -143,7 +145,7 @@ class QubicNetworkManager():
             await asyncio.gather(*tasks)
         except Exception as e:
 
-            logging.warning(e)
+            logging.exception(e)
             pass
 
     def foget_peer(self, peer):
@@ -199,7 +201,7 @@ class Peer():
         try:
             await self.handshake()
         except Exception as e:
-            self._disconection(e)
+            await self._disconection(e)
             return
 
         task = asyncio.create_task(self.__read_loop())
@@ -214,6 +216,7 @@ class Peer():
         """When connecting to a peer we exchange public peers. 
         """
         import random
+
         from qubic.qubicdata import NUMBER_OF_EXCHANGED_PEERS
         from qubic.qubicutils import ip_to_ctypes
         print("Handshake")
@@ -229,14 +232,16 @@ class Peer():
             header.type = EXCHANGE_PUBLIC_PEERS
 
             know_ip = self.__qubic_manager.know_ip
-            random_ip_list = random.sample(know_ip, min(len(know_ip), NUMBER_OF_EXCHANGED_PEERS))
+            random_ip_list = random.sample(know_ip, min(
+                len(know_ip), NUMBER_OF_EXCHANGED_PEERS))
             for i in range(0, NUMBER_OF_EXCHANGED_PEERS):
-                exchange_public_peers.peers[i] = ip_to_ctypes(random_ip_list[i])
+                exchange_public_peers.peers[i] = ip_to_ctypes(
+                    random_ip_list[i])
 
             try:
                 await self.send_data(bytes(header) + bytes(exchange_public_peers))
             except Exception as e:
-                self._disconection(e)
+                await self._disconection(e)
                 return
 
     async def _disconection(self, what):
@@ -294,17 +299,31 @@ class Peer():
                     raw_payload)
                 self.__qubic_manager.add_ip(
                     set(exchange_public_peers_to_list(exchange_public_peers)))
-                self.__callbacks.execute(header_type=EXCHANGE_PUBLIC_PEERS, data=exchange_public_peers)
+                self.__callbacks.execute(
+                    header_type=EXCHANGE_PUBLIC_PEERS, data=exchange_public_peers)
 
             if header_type == BROADCAST_COMPUTORS:
-                print("BROADCAST_COMPUTORS")
                 computors = Computors.from_buffer_copy(raw_payload)
                 if is_valid_broadcast_computors(computors):
                     if can_apply_computors_data(computors=computors):
                         await apply_computors_data(computors)
-                        self.__callbacks.execute(header_type=BROADCAST_COMPUTORS, data=computors)
+                        self.__callbacks.execute(
+                            header_type=BROADCAST_COMPUTORS, data=computors)
+            elif header_type == BROADCAST_RESOURCE_TESTING_SOLUTION:
+                self.__callbacks.execute(
+                    header_type=header_type, data=BroadcastResourceTestingSolution.from_buffer_copy(raw_payload))
+            elif header_type == BROADCAST_TICK:
+                tick = Tick.from_buffer_copy(raw_payload)
+                if tick.hour <= 23 and tick.minute <= 59 and tick.second <= 59 and tick.millisecond <= 999:
+                    # TODO: add verify check
+                    self.__callbacks.execute(
+                        header_type=header_type, data=tick)
 
-            await self.__qubic_manager.send_other(raw_data, self)
+            task = asyncio.create_task(
+                self.__qubic_manager.send_other(raw_data, self))
+            if not task.done():
+                self.__background_tasks.append(task)
+                task.add_done_callback(self.__background_tasks.remove)
 
     async def __read_message(self):
         if self.__state != ConnectionState.CONNECTED:
