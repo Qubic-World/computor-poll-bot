@@ -1,7 +1,9 @@
+import asyncio
 import logging
 import os
 from typing import Optional
 from nats.aio.client import Client
+import nats.errors
 
 
 class Nats():
@@ -72,15 +74,41 @@ class Nats():
         return self.__nc
 
     async def close(self):
-        if self.is_closed:
+        if self.is_disconected:
             return
 
         await self.__nc.close()
         self.__nc = None
 
     async def drain(self):
-        if self.is_closed:
+        if self.is_disconected:
             return
 
         await self.__nc.drain()
         self.__nc = None
+
+    async def subscribe(self, subject: str):
+        if self.is_disconected:
+            return None
+
+        try:
+            return await self.nc.subscribe(subject=subject)
+        except asyncio.CancelledError as e:
+            raise e
+        except nats.errors.Error as e:
+            logging.exception(e)
+            return None
+
+    async def publish(self, subject: str, payload: bytes):
+        if self.is_disconected:
+            return None
+
+        try:
+            return await self.nc.publish(subject=subject, payload=payload)
+        except asyncio.CancelledError as e:
+            raise e
+        except nats.errors.Error as e:
+            logging.exception(e)
+            return None
+
+        
