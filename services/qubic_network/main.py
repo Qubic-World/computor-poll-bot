@@ -6,7 +6,7 @@ from custom_nats.custom_nats import Nats
 from qubic.qubicdata import (BROADCAST_COMPUTORS,
                              BROADCAST_RESOURCE_TESTING_SOLUTION,
                              BROADCAST_TICK, EXCHANGE_PUBLIC_PEERS,
-                             BroadcastResourceTestingSolution, Computors,
+                             BroadcastResourceTestingSolution, BroadcastComputors,
                              ExchangePublicPeers, Subjects, Tick)
 
 from manager import QubicNetworkManager
@@ -18,7 +18,7 @@ async def publish_data(header_type: int, data: Any):
         logging.error('Failed to connect to Nats')
         return
 
-    if header_type == BROADCAST_COMPUTORS and isinstance(data, Computors):
+    if header_type == BROADCAST_COMPUTORS and isinstance(data, BroadcastComputors):
         # logging.debug('BROADCAST_COMPUTORS')
         payload = bytes(data)
 

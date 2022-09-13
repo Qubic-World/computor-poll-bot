@@ -9,6 +9,7 @@ from typing import Any, Optional
 from qubic.qubicdata import (BROADCAST_COMPUTORS,
                              BROADCAST_RESOURCE_TESTING_SOLUTION,
                              BROADCAST_TICK, EXCHANGE_PUBLIC_PEERS,
+                             BroadcastComputors,
                              BroadcastResourceTestingSolution, Computors,
                              ConnectionState, ExchangePublicPeers,
                              RequestResponseHeader, Tick)
@@ -303,12 +304,13 @@ class Peer():
                     header_type=EXCHANGE_PUBLIC_PEERS, data=exchange_public_peers)
 
             if header_type == BROADCAST_COMPUTORS:
-                computors = Computors.from_buffer_copy(raw_payload)
+                broadcast_computors = BroadcastComputors.from_buffer_copy(raw_payload)
+                computors:Computors = broadcast_computors.computors
                 if is_valid_broadcast_computors(computors):
                     if can_apply_computors_data(computors=computors):
                         await apply_computors_data(computors)
                         self.__callbacks.execute(
-                            header_type=BROADCAST_COMPUTORS, data=computors)
+                            header_type=BROADCAST_COMPUTORS, data=broadcast_computors)
             elif header_type == BROADCAST_RESOURCE_TESTING_SOLUTION:
                 self.__callbacks.execute(
                     header_type=header_type, data=BroadcastResourceTestingSolution.from_buffer_copy(raw_payload))

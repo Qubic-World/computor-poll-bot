@@ -73,6 +73,10 @@ class Computors(ctypes.Structure):
                 ("signature", c_signature_type)]
 
 
+class BroadcastComputors(ctypes.Structure):
+    _fields_ = [('computors', Computors)]
+
+
 class ResourceTestingSolution(ctypes.Structure):
     _fields_ = [('computorPublicKey', c_public_key_type),
                 ('nonces', c_nonce_type * NUMBER_OF_SOLUTION_NONCES)]
