@@ -1,5 +1,6 @@
 
 import logging
+from typing import Union
 from discord import Client, Member, Message
 from discord.utils import get
 from discord.ext import commands
@@ -39,7 +40,6 @@ def get_poll_channel_id() -> int:
     return int(getenv("POLL_CHANNEL_ID", None))
 
 
-
 def get_role_name() -> str:
     try:
         return getenv("ROLE_NAME")
@@ -62,9 +62,19 @@ def get_username_with_discr(member: Member) -> str:
     return str(member.name + '#' + member.discriminator)
 
 
+async def get_messages_from_poll_channel(bot: Client) -> Union[list[Message], None]:
+    channel = get_poll_channel(bot)
+    if channel is None:
+        return
+
+    async for message in channel.history():
+        yield message
+
+
 async def get_poll_message_by_id(bot: Client, message_id: int) -> Message:
     channel = get_poll_channel(bot)
     return await channel.fetch_message(message_id)
+
 
 def get_poll_channel(bot: Client):
     return bot.get_channel(get_poll_channel_id())

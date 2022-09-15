@@ -15,9 +15,9 @@ from discord import (ActionRow, Button, ButtonStyle, Client, Embed,
                      Interaction, Message, errors)
 from discord.ext import commands
 from discord.ext.commands import Context
-# from discord_components import Button, ButtonStyle
-from utils.botutils import (get_poll_channel, get_poll_channel_id,
-                            get_poll_message_by_id, get_role_name)
+from utils.botutils import (get_messages_from_poll_channel, get_poll_channel,
+                            get_poll_channel_id, get_poll_message_by_id,
+                            get_role_name)
 
 DESCRIPTION_FIELD = "description"
 VARIANTS_FIELD = "variants"
@@ -107,9 +107,17 @@ class Poll():
         return ", ".join(list_vote)
 
     async def resend_embed(self):
+        VOTE_COUNT_TEXT = 'Vote count:\n'
+
+        new_footer_text = f'{VOTE_COUNT_TEXT} {self.pretty_vote_count()}'
         embed: Embed = self.__poll_message.embeds[0]
-        embed.set_footer(text=f'Vote count:\n {self.pretty_vote_count()}')
-        await self.__poll_message.edit(embed=embed)
+        current_foter_text = embed.footer.text
+        if current_foter_text != new_footer_text:
+            logging.info('update embed footer')
+            logging.info(
+                f'current footer: {current_foter_text}, new_footer = {new_footer_text}')
+            embed.set_footer(text=new_footer_text)
+            await self.__poll_message.edit(embed=embed)
 
     def update_user_identities(self, user_id: int) -> bool:
         if user_id in self.__voted_users.keys():
@@ -439,31 +447,38 @@ class PollCog(commands.Cog):
     async def __cleanup(self):
         """Deletes non-existing polls
         """
-        async def is_exists_message(message_id: int) -> bool:
-            try:
-                message: Message = await get_poll_message_by_id(self.__bot, message_id)
-            except:
-                return False
+        async def is_exists_messages(message_ids: list[int]):
+            exists = []
+            message: Message = None
+            async for message in get_messages_from_poll_channel(self.__bot):
+                if message.id in message_ids:
+                    exists.append(message.id)
 
-            return True
+            return exists, set(message_ids) - set(exists)
 
         """Delete polls that don't exist or have been completed and haven't closed for some reason
         """
-        tasks = []
-        for item in self.__poll_list:
-            tasks.append(asyncio.create_task(
-                is_exists_message(item.message_id)))
+        poll_ids = [poll.message_id for poll in self.__poll_list]
+        e, ne = await is_exists_messages(poll_ids)
+        logging.info(f'exists: {e} not exists: {ne}')
+        not_exist_polls = [
+            poll for poll in self.__poll_list if poll.message_id in ne]
+        logging.info(f'poll not exists: {not_exist_polls}')
 
-        dict_list = []
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        for idx in reversed(range(len(results))):
-            result = results[idx]
-            poll_item: Poll = self.__poll_list[idx]
-            if type(result) is Exception or result == False:
-                self.__poll_list.remove(poll_item)
-            else:
-                if poll_item.number_of_voters >= NUMBER_OF_VOTES_FOR_END:
-                    await poll_item.done()
+        poll: Poll = None
+        for poll in not_exist_polls:
+            try:
+                self.__poll_list.remove(poll)
+            except Exception as e:
+                logging.exception(e)
+
+        dones = []
+        for poll in self.__poll_list:
+            if poll.number_of_voters >= NUMBER_OF_VOTES_FOR_END:
+                dones.append(asyncio.create_task(poll.done()))
+
+        if len(dones) > 0:
+            await asyncio.wait(dones)
 
     async def _save_polls_to_file(self, poll: Poll):
         await self.__cleanup()
@@ -483,7 +498,7 @@ class PollCog(commands.Cog):
                     logging.exception(ValueError('poll channel is None'))
                     return
 
-                async for message in channel.history(limit=200):
+                async for message in get_messages_from_poll_channel(self.__bot):
                     embeds = message.embeds
                     if len(embeds) > 0 and embeds[0].title == EMBED_TITLE:
                         logging.info(embeds[0].title)
