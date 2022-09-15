@@ -1,4 +1,5 @@
 import asyncio
+import itertools
 import logging
 from ctypes import sizeof
 from typing import Optional
@@ -9,8 +10,44 @@ from custom_nats.handler import Handler, HandlerStarter
 from nats.aio.msg import Msg
 from qubic.qubicdata import (NUMBER_OF_SOLUTION_NONCES, BroadcastComputors,
                              BroadcastResourceTestingSolution, Computors,
-                             ResourceTestingSolution, Subjects, Tick)
+                             ResourceTestingSolution, Subjects, Tick, DataSubjects)
 from qubic.qubicutils import get_identity
+
+
+class DataContainer():
+    __ticks = dict()
+    __SEND_INTERVAL_S = 10
+
+    @classmethod
+    def add_tick(cls, computor_index: int, new_tick: int):
+        found_tick = cls.__ticks.setdefault(computor_index, new_tick)
+        if found_tick < new_tick:
+            cls.__ticks[computor_index] = new_tick
+
+    @classmethod
+    def get_ticks(cls) -> dict:
+        return cls.__ticks
+
+    @classmethod
+    async def send_data(cls):
+        import json
+
+        nc = Nats()
+        if nc.is_disconected:
+            logging.error(f'{DataContainer.__name__}: Nats is disconected')
+            return
+
+        while not nc.is_disconected:
+            logging.info('Sending data')
+            tasks = set()
+            tasks.add(asyncio.create_task(
+                asyncio.sleep(cls.__SEND_INTERVAL_S)))
+
+            if len(cls.__ticks) >= 0:
+                tasks.add(asyncio.create_task(nc.publish(DataSubjects.TICKS,
+                                                         json.dumps(cls.__ticks).encode())))
+
+            await asyncio.wait(tasks)
 
 
 class HandleBroadcastComputors(Handler):
@@ -90,13 +127,15 @@ class HandleBroadcastTick(Handler):
     def __init__(self, nc: Nats) -> None:
         super().__init__(nc)
 
-        self.__ticks = dict()
-
         self.add_task(asyncio.create_task(self.print_ticks()))
 
     async def print_ticks(self):
         while True:
-            logging.info(f'Ticks:\n{sorted(self.__ticks.keys())}')
+            sorted_ticks = sorted(
+                DataContainer.get_ticks().values(), reverse=True)
+            pretty_ticks = [(key, len(list(group)))
+                            for key, group in itertools.groupby(sorted_ticks)]
+            logging.info(f'Ticks:\n{pretty_ticks}')
             await asyncio.sleep(1)
 
     async def get_sub(self):
@@ -118,9 +157,8 @@ class HandleBroadcastTick(Handler):
 
         tick_structure = Tick.from_buffer_copy(data)
 
-        saved_tick = self.__ticks.get(tick_structure.computorIndex, 0)
-        if saved_tick < tick_structure.tick:
-            self.__ticks[tick_structure.computorIndex] = tick_structure.tick
+        DataContainer.add_tick(
+            tick_structure.computorIndex, tick_structure.tick)
 
 
 async def main():
@@ -137,7 +175,9 @@ async def main():
         asyncio.create_task(HandlerStarter.start(
             HandleBroadcastResourceTestingSolution(nc))),
         asyncio.create_task(HandlerStarter.start(HandleBroadcastTick(nc))),
-        asyncio.create_task(HandlerStarter.start(HandleBroadcastComputors(nc)))
+        asyncio.create_task(HandlerStarter.start(
+            HandleBroadcastComputors(nc))),
+        asyncio.create_task(DataContainer.send_data())
     ]
 
     await asyncio.wait(tasks)

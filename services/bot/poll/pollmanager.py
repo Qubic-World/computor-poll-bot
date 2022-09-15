@@ -1,4 +1,5 @@
 import asyncio
+import itertools
 import json
 import logging
 import os
@@ -10,18 +11,20 @@ from checkers import has_role_on_member, is_bot_channel
 from commands.pool import pool_commands
 from data.identity import identity_manager
 from data.users import user_data
-from discord import Client, Embed, Message, errors
+from discord import (ActionRow, Button, ButtonStyle, Client, Embed,
+                     Interaction, Message, errors)
 from discord.ext import commands
 from discord.ext.commands import Context
-from discord_components import Button, ButtonStyle
-from utils.botutils import (get_poll_channel_id, get_poll_message_by_id,
-                            get_role_name)
+# from discord_components import Button, ButtonStyle
+from utils.botutils import (get_poll_channel, get_poll_channel_id,
+                            get_poll_message_by_id, get_role_name)
 
 DESCRIPTION_FIELD = "description"
 VARIANTS_FIELD = "variants"
 FIELDS = [DESCRIPTION_FIELD, VARIANTS_FIELD]
 POLL_FIELDS = ["id", "variants", "poll_message_id",
                "vote_counter", "voted_users"]
+EMBED_TITLE = 'Poll'
 
 VARIANT_NUMBERS = ['1⃣', '2⃣', '3⃣', '4⃣', '5⃣', '6⃣', '7⃣', '8⃣', '9⃣', '🔟']
 MINIMUM_NUMBER_OF_VARIANTS = 1
@@ -29,7 +32,8 @@ MAXIMUM_NUMBER_OF_VARIANTS = 5
 NUMBER_OF_VOTES_FOR_END = 451
 
 
-BUTTON_CLICK_EVENT_NAME = "button_click"
+# BUTTON_CLICK_EVENT_NAME = "button_click"
+BUTTON_CLICK_EVENT_NAME = "interaction"
 
 
 class Poll():
@@ -156,6 +160,11 @@ class Poll():
         task.add_done_callback(self.__background_tasks.remove)
 
     async def __listen_buttons(self):
+        logging.info(f'{self.__listen_buttons.__name__}')
+
+        def get_custom_id(interaction: Interaction):
+            return interaction.data['custom_id']
+
         def check_role(member):
             """Only people with a role can click the buttons
             """
@@ -164,6 +173,7 @@ class Poll():
         def check_button(custom_id: str):
             """Process only those buttons that relate to this poll
             """
+            logging.info(f'{custom_id} in {self.__components_id}')
             return custom_id in self.__components_id
 
         def is_voted(user_id: int):
@@ -172,20 +182,23 @@ class Poll():
             return user_id in self.__voted_users.keys()
 
         def check(interaction):
-            user = interaction.user
-            return check_role(user) and check_button(interaction.custom_id) #and not is_voted(user.id)
+            # logging.info('check')
+            # user = interaction.user
+            # and not is_voted(user.id)
+            # return check_role(user) and check_button(interaction.custom_id)
+            return check_button(get_custom_id(interaction=interaction))
 
         def get_variant_index(interaction):
             """Get the variant number from the button pressed
             """
-            return self.__components_id.index(interaction.custom_id)
+            return self.__components_id.index(get_custom_id(interaction=interaction))
 
         def get_variant(interaction):
             """Get variant on the button pressed
             """
             return self.__variants[get_variant_index(interaction)]
 
-        def add_vote(interaction):
+        def add_vote(interaction: Interaction):
             """Increasing the number of votes
             """
 
@@ -203,26 +216,32 @@ class Poll():
             try:
                 """Waiting for the button to be clicked
                 """
-                interaction = await self.__bot.wait_for(BUTTON_CLICK_EVENT_NAME, check=check)
+                logging.info('wait event')
+                interaction: Interaction = await self.__bot.wait_for(BUTTON_CLICK_EVENT_NAME, check=check)
+                logging.info(type(interaction))
+                if not check_role(member=interaction.user):
+                    await interaction.response.send_message(content='You do not have the Computor role to take polls', ephemeral=True)
+                    continue
 
                 user_id = interaction.user.id
                 logging.debug(f'You id: {user_id}')
                 if is_voted(interaction.user.id):
                     logging.debug('Voted')
-                    selected_variant = self.__selected_variants.get(user_id, None)
+                    selected_variant = self.__selected_variants.get(
+                        user_id, None)
                     ids = self.__voted_users.get(user_id, None)
                     if selected_variant is None or ids is None:
                         # TODO: Add message
                         continue
                     try:
-                        await interaction.send(content=f'You voted for option: {selected_variant + 1}{os.linesep}\
+                        await interaction.response.send_message(ephemeral=True, content=f'You voted for option: {selected_variant + 1}{os.linesep}\
 Number of your IDs that took part in the voting: {len(ids)}')
                     except errors.NotFound as e:
                         logging.warning(e)
                     continue
 
                 try:
-                    await interaction.send(content=f"You voted for the option: {get_variant(interaction)}")
+                    await interaction.response.send_message(ephemeral=True, content=f"You voted for the option: {get_variant(interaction)}")
                 except errors.NotFound as e:
                     logging.warning(e)
                 """Increasing the number of votes
@@ -242,7 +261,7 @@ Number of your IDs that took part in the voting: {len(ids)}')
                 pass
 
     async def create(self):
-        embed = Embed(title="Poll", description=self.__description)
+        embed = Embed(title=EMBED_TITLE, description=self.__description)
 
         variant_len = len(self.__variants)
         value = "\n".join(
@@ -262,6 +281,32 @@ Number of your IDs that took part in the voting: {len(ids)}')
         await self.__start_listen_byttons()
 
         await self.call_callback(self.__create_callback)
+
+    async def create_from_message(self, message: Message):
+        import re
+        if not isinstance(message, Message) or message is None:
+            return False
+
+        logging.info(self.create_from_message.__name__)
+
+        self.__poll_message_id = message.id
+        self.__poll_message = message
+
+        embed: Embed = message.embeds[0]
+        variants_raw: str = embed.fields[0].value
+        variants_raw = re.sub(
+            pattern=f'({"|".join(VARIANT_NUMBERS)})', repl='', string=variants_raw)
+        self.__variants = variants_raw.split('\n')
+
+        self.__components_id = list(itertools.chain.from_iterable([[component.custom_id for component in row.children if isinstance(component, Button)]
+                                                                   for row in message.components if isinstance(row, ActionRow)]))
+
+        if len(self.__components_id) <= 0:
+            return False
+
+        self.__id = self.__components_id[0].split('_')[1]
+        await self.__start_listen_byttons()
+        return True
 
     async def create_from_dict(self, data: dict):
         self.__id = UUID(data[POLL_FIELDS[0]])
@@ -314,13 +359,16 @@ Number of your IDs that took part in the voting: {len(ids)}')
     def add_recount_callback(self, function):
         self.__recount_callback.add(function)
 
+
 FILE_NAME = 'poll_cache.data'
+
 
 class PollCog(commands.Cog):
     def __init__(self, bot) -> None:
         self.__bot: Client = bot
         self.__poll_list = []
-        self.__cache_file = os.path.join(os.getenv('DATA_FILES_PATH', './'), FILE_NAME)
+        self.__cache_file = os.path.join(
+            os.getenv('DATA_FILES_PATH', './'), FILE_NAME)
 
     @property
     def polls(self):
@@ -426,14 +474,35 @@ class PollCog(commands.Cog):
             await f.write(json.dumps(str(dict_list)))
 
     async def _load_polls_from_file(self):
+        from json.decoder import JSONDecodeError
+
+        async def restore():
+            if len(self.__poll_list) <= 0:
+                channel = get_poll_channel(self.__bot)
+                if channel is None:
+                    logging.exception(ValueError('poll channel is None'))
+                    return
+
+                async for message in channel.history(limit=200):
+                    embeds = message.embeds
+                    if len(embeds) > 0 and embeds[0].title == EMBED_TITLE:
+                        logging.info(embeds[0].title)
+                        poll = Poll(self.__bot, None, "", "")
+                        if await poll.create_from_message(message=message) is True:
+                            self.__poll_list.append(poll)
+                        else:
+                            del poll
         dict_list = []
         try:
+            logging.info('Loading polls from file')
             async with aiofiles.open(self.__cache_file, "r") as f:
                 dict_list = list(eval(json.loads(await f.read())))
-        except FileNotFoundError:
-            return
+        except (FileNotFoundError, JSONDecodeError) as e:
+            logging.warning(f'{self._load_polls_from_file.__name__}: {e}')
 
         if len(dict_list) <= 0:
+            await restore()
+            await self._save_polls_to_file(None)
             return
 
         for data in dict_list:
@@ -446,9 +515,17 @@ class PollCog(commands.Cog):
             self.__poll_list.append(poll)
             self.init_callback(poll)
 
+        logging.info(self.__poll_list)
+
         # After loading from a file, delete invalid polls
         old_size = len(self.__poll_list)
         await self.__cleanup()
+
+        if len(self.__poll_list) <= 0:
+            await restore()
+            await self._save_polls_to_file(None)
+            return
+
         if len(self.__poll_list) != old_size:
             await self._save_polls_to_file(None)
 
@@ -470,11 +547,3 @@ class PollCog(commands.Cog):
 
         if removed:
             await self.__save_polls_to_file()(None)
-
-
-class PollManager():
-    def __init__(self) -> None:
-        pass
-
-
-poll_manager = PollManager()

@@ -41,6 +41,11 @@ class Subjects:
     BROADCAST_RESOURCE_TESTING_SOLUTION = 'qubic.data.broadcast_resource_testing_solution'
 
 
+class DataSubjects:
+    TICKS = 'qubic.data.ticks'
+    SCORES = 'qubic.data.scores'
+
+
 """Network packages
 """
 EXCHANGE_PUBLIC_PEERS = 0
@@ -71,6 +76,28 @@ class Computors(ctypes.Structure):
                 ("public_keys", ctypes.c_uint8 *
                  ((NUMBER_OF_COMPUTORS + (NUMBER_OF_COMPUTORS - QUORUM)) * KEY_SIZE)),
                 ("signature", c_signature_type)]
+
+
+"""
+static struct System
+{
+    short version;
+    unsigned short epoch;
+    unsigned int tick;
+    Computors computors;
+    unsigned int tickCounters[NUMBER_OF_COMPUTORS];
+    unsigned short decimationCounters[NUMBER_OF_COMPUTORS];
+} system, systemToSave, cachedSystem;
+"""
+
+
+class System(ctypes.Structure):
+    _fields_ = [('version', ctypes.c_short),
+                ('epoch', ctypes.c_ushort),
+                ('tick', ctypes.c_uint32),
+                ('computors', Computors),
+                ('tickCounters', ctypes.c_uint32 * NUMBER_OF_COMPUTORS),
+                ('decimationCounters', ctypes.c_ushort * NUMBER_OF_COMPUTORS)]
 
 
 class BroadcastComputors(ctypes.Structure):

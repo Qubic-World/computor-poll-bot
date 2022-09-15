@@ -138,3 +138,6 @@ dmypy.json
 
 # data files
 **/data_files/
+
+# Backup files
+backup_data/*

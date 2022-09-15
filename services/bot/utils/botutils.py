@@ -36,12 +36,8 @@ def get_guild_by_member(member: Member):
 
 
 def get_poll_channel_id() -> int:
-    try:
-        id = int(getenv("POLL_CHANNEL_ID"))
-    except:
-        id = -1
+    return int(getenv("POLL_CHANNEL_ID", None))
 
-    return id
 
 
 def get_role_name() -> str:
@@ -67,5 +63,8 @@ def get_username_with_discr(member: Member) -> str:
 
 
 async def get_poll_message_by_id(bot: Client, message_id: int) -> Message:
-    channel = bot.get_channel(get_poll_channel_id())
+    channel = get_poll_channel(bot)
     return await channel.fetch_message(message_id)
+
+def get_poll_channel(bot: Client):
+    return bot.get_channel(get_poll_channel_id())

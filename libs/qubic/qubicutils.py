@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import sys
@@ -9,14 +10,15 @@ from algorithms.verify import get_identity, kangaroo_twelve, verify
 
 from qubic.qubicdata import (ADMIN_PUBLIC_KEY, EMPTY_PUBLIC_KEY,
                              SIGNATURE_SIZE, Computors, ExchangePublicPeers,
-                             RequestResponseHeader, c_ip_type,
+                             RequestResponseHeader, System, c_ip_type,
                              computors_system_data)
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
 
-COMPUTORS_CACHE_PATH = os.path.join(os.getenv('DATA_FILES_PATH', './'), 'system.data')
+COMPUTORS_CACHE_PATH = os.path.join(
+    os.getenv('DATA_FILES_PATH', './'), 'system.data')
 
 """ IP
 """
@@ -66,6 +68,7 @@ def exchange_public_peers_to_list(exchange_public_peers: ExchangePublicPeers) ->
         ip_list.append(ip_str)
 
     return ip_list
+
 
 def get_protocol_version() -> int:
     try:
@@ -128,15 +131,31 @@ async def cache_computors(computors: Computors):
     computors_system_data = computors
 
 
+def get_comutors_system_data():
+    global computors_system_data
+    return computors_system_data
+
+
 async def load_cache_computors():
     if not os.path.isfile(COMPUTORS_CACHE_PATH):
         return
 
     async with aiofiles.open(COMPUTORS_CACHE_PATH, "rb") as f:
-        b = await f.read()
-        if len(b) != sizeof(Computors):
-            return
         global computors_system_data
+        b = await f.read()
+        len_b = len(b)
+        logging.info(
+            f'Len bytes: {len_b}, sizeof System: {sizeof(System)}, sizeof Computors: {sizeof(Computors)}')
+        if len_b == sizeof(System):
+            logging.info('Loading computors from System')
+            system = System.from_buffer_copy(b)
+            computors_system_data = system.computors
+            return
+
+        if len_b != sizeof(Computors):
+            return
+
+        logging.info('Loading computors from Computors')
         computors_system_data = Computors.from_buffer_copy(b)
 
 

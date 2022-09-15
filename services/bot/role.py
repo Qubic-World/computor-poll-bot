@@ -92,6 +92,6 @@ class RoleManager():
                 "RoleManager.reset_roles: failed to get a member")
             return
 
-        has_computors = len(identity_manager.get_only_computor_identities(user_data.get_user_identities(user_id))) > 0
+        has_computors = len(identity_manager.get_only_computor_identities(
+            user_data.get_user_identities(user_id))) > 0
         await self.__set_role_to_member(member, has_computors)
-
