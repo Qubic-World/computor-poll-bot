@@ -85,7 +85,10 @@ def get_protocol_version() -> int:
 
 
 def is_valid_header(header: RequestResponseHeader) -> bool:
-    return header.protocol == get_protocol_version() and header.size > 0
+    protocol = get_protocol_version()
+    min_protocol = protocol - 1
+    max_protocol = protocol + 1
+    return header.size > 0 and min_protocol <= header.protocol <= max_protocol
 
 
 def get_header_from_bytes(raw_data: bytes) -> RequestResponseHeader:

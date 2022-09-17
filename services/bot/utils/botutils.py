@@ -78,3 +78,20 @@ async def get_poll_message_by_id(bot: Client, message_id: int) -> Message:
 
 def get_poll_channel(bot: Client):
     return bot.get_channel(get_poll_channel_id())
+
+
+def get_components_by_type(message, component_type):
+    import itertools
+    from discord import ActionRow, Message
+
+    if not isinstance(message, Message):
+        logging.exception(TypeError('message is not discord.Message'))
+        return []
+
+    return list(itertools.chain.from_iterable([[component for component in row.children if isinstance(component, component_type)]
+                                               for row in message.components if isinstance(row, ActionRow)]))
+
+
+def get_buttons_from_message(message):
+    from discord import Button
+    return get_components_by_type(message=message, component_type=Button)

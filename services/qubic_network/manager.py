@@ -88,8 +88,9 @@ class QubicNetworkManager():
             if len(self._peers) != NUBMER_OF_CONNECTION:
 
                 # If there are few known peers left, try reconnecting to forgotten ones
-                if len(self._know_ip) <= 1 and len(self._fogeted_ip) > 0:
+                if len(self._know_ip) <= 2 and len(self._fogeted_ip) > 0:
                     self._know_ip = self._know_ip.union(self._fogeted_ip)
+                    self._fogeted_ip.clear()
 
                 if len(self._know_ip) > 0:
                     list_ip = list(self._know_ip)

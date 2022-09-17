@@ -1,5 +1,4 @@
 import asyncio
-import itertools
 import json
 import logging
 import os
@@ -11,11 +10,12 @@ from checkers import has_role_on_member, is_bot_channel
 from commands.pool import pool_commands
 from data.identity import identity_manager
 from data.users import user_data
-from discord import (ActionRow, Button, ButtonStyle, Client, Embed,
+from discord import (Button, ButtonStyle, Client, Embed,
                      Interaction, Message, errors)
 from discord.ext import commands
 from discord.ext.commands import Context
-from utils.botutils import (get_messages_from_poll_channel, get_poll_channel,
+from utils.botutils import (get_buttons_from_message,
+                            get_messages_from_poll_channel, get_poll_channel,
                             get_poll_channel_id, get_poll_message_by_id,
                             get_role_name)
 
@@ -78,12 +78,7 @@ class Poll():
     def number_of_voters(self):
         """Number of votes received
         """
-        vote_counts = self.get_vote_counts()
-        sum = 0
-        for count in vote_counts.values():
-            sum += count
-
-        return sum
+        return sum(self.get_vote_counts().values())
 
     def get_vote_counts(self):
         """
@@ -108,8 +103,9 @@ class Poll():
 
     async def resend_embed(self):
         VOTE_COUNT_TEXT = 'Vote count:\n'
+        TOTAL_VOTES = 'Total votes:'
 
-        new_footer_text = f'{VOTE_COUNT_TEXT} {self.pretty_vote_count()}'
+        new_footer_text = f'{VOTE_COUNT_TEXT} {self.pretty_vote_count()}\n {TOTAL_VOTES} {sum(self.get_vote_counts().values())}'
         embed: Embed = self.__poll_message.embeds[0]
         current_foter_text = embed.footer.text
         if current_foter_text != new_footer_text:
@@ -189,12 +185,11 @@ class Poll():
             """
             return user_id in self.__voted_users.keys()
 
-        def check(interaction):
-            # logging.info('check')
-            # user = interaction.user
-            # and not is_voted(user.id)
-            # return check_role(user) and check_button(interaction.custom_id)
-            return check_button(get_custom_id(interaction=interaction))
+        def check(interaction: Interaction):
+            i_m_id = interaction.message.id
+            m_id = self.__poll_message.id
+            logging.info(f'check interaction: {i_m_id} == {m_id}')
+            return i_m_id == m_id 
 
         def get_variant_index(interaction):
             """Get the variant number from the button pressed
@@ -220,15 +215,24 @@ class Poll():
             variant_idx = get_variant_index(interaction)
             self.__selected_variants.setdefault(user_id, variant_idx)
 
+        async def _check_done():
+            """Checking if can close the poll
+            """
+            logging.info(
+                f'done: {self.number_of_voters} >= {NUMBER_OF_VOTES_FOR_END}')
+            if self.number_of_voters >= NUMBER_OF_VOTES_FOR_END:
+                await self.done()
+
         while True:
             try:
                 """Waiting for the button to be clicked
                 """
                 logging.info('wait event')
                 interaction: Interaction = await self.__bot.wait_for(BUTTON_CLICK_EVENT_NAME, check=check)
-                logging.info(type(interaction))
+
                 if not check_role(member=interaction.user):
                     await interaction.response.send_message(content='You do not have the Computor role to take polls', ephemeral=True)
+                    await _check_done()
                     continue
 
                 user_id = interaction.user.id
@@ -262,8 +266,7 @@ Number of your IDs that took part in the voting: {len(ids)}')
 
                 await self.call_callback(self.__voted_callback)
 
-                if self.number_of_voters == NUMBER_OF_VOTES_FOR_END:
-                    await self.done()
+                await _check_done()
 
             except asyncio.CancelledError:
                 pass
@@ -306,8 +309,8 @@ Number of your IDs that took part in the voting: {len(ids)}')
             pattern=f'({"|".join(VARIANT_NUMBERS)})', repl='', string=variants_raw)
         self.__variants = variants_raw.split('\n')
 
-        self.__components_id = list(itertools.chain.from_iterable([[component.custom_id for component in row.children if isinstance(component, Button)]
-                                                                   for row in message.components if isinstance(row, ActionRow)]))
+        self.__components_id = [
+            button.custom_id for button in get_buttons_from_message(self.__poll_message)]
 
         if len(self.__components_id) <= 0:
             return False
@@ -349,7 +352,13 @@ Number of your IDs that took part in the voting: {len(ids)}')
 
         """Removing the voting buttons
         """
-        await self.__poll_message.edit(components=[])
+        from discord.ui import View
+
+        logging.info('done')
+        view = View.from_message(self.__poll_message)
+        logging.info('clear buttons')
+        view.clear_items()
+        self.__poll_message = await self.__poll_message.edit(view=view)
 
         """Notify listeners that the poll has been completed
         """
