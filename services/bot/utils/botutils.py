@@ -1,14 +1,14 @@
-
 import logging
-from typing import Union
-from discord import Client, Member, Message
-from discord.utils import get
-from discord.ext import commands
 from os import getenv
+from typing import Union
+
+from discord import Client, Member, Message
+from discord.ext import commands
+from discord.utils import get
 
 
 def get_channel_id() -> int:
-    return int(getenv("CHANNEL_ID"))
+    return int(getenv("CHANNEL_ID", -1))
 
 
 def get_member_by_id(poll_bot: Client, user_id: int):
@@ -21,11 +21,7 @@ def get_member_by_id(poll_bot: Client, user_id: int):
 
 
 def get_guild_id():
-    try:
-        return int(getenv("GUILD_ID"))
-    except Exception as e:
-        logging.error(e)
-        return -1
+    return int(getenv("GUILD_ID", -1))
 
 
 def get_guild(poll_bot: Client):
@@ -82,6 +78,7 @@ def get_poll_channel(bot: Client):
 
 def get_components_by_type(message, component_type):
     import itertools
+
     from discord import ActionRow, Message
 
     if not isinstance(message, Message):

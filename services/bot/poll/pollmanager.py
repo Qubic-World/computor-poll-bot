@@ -6,14 +6,14 @@ from typing import Optional
 from uuid import UUID, uuid4
 
 import aiofiles
-from checkers import has_role_on_member, is_bot_channel
+from checkers import has_role_on_member
 from commands.pool import pool_commands
 from data.identity import identity_manager
 from data.users import user_data
-from discord import (Button, ButtonStyle, Client, Embed,
-                     Interaction, Message, errors)
+from discord import ButtonStyle, Client, Embed, Interaction, Message, errors
 from discord.ext import commands
 from discord.ext.commands import Context
+from discord.ui import Button, View
 from utils.botutils import (get_buttons_from_message,
                             get_messages_from_poll_channel, get_poll_channel,
                             get_poll_channel_id, get_poll_message_by_id,
@@ -284,10 +284,15 @@ Number of your IDs that took part in the voting: {len(ids)}')
         self.__components_id = [
             component.custom_id for component in self.__components]
 
-        await self.__ctx.reply("Success", delete_after=10)
-        message = await self.__poll_channel.send(embed=embed, components=[self.__components])
+        v = View(timeout=None)
+        for button in self.__components:
+            v.add_item(button)
+
+        message = await self.__poll_channel.send(embed=embed, view=v)
         self.__poll_message_id = message.id
         self.__poll_message = message
+
+        await self.__ctx.reply("Success")
 
         await self.__start_listen_byttons()
 
@@ -410,7 +415,7 @@ class PollCog(commands.Cog):
         poll.add_recount_callback(self._save_polls_to_file)
 
     @commands.check(has_role_on_member)
-    @commands.check(is_bot_channel)
+    @commands.dm_only()
     @commands.command(name="poll")
     async def poll_command(self, ctx: Context, description, *variants):
         """Creating a poll in which only participants with the Computor role can take part

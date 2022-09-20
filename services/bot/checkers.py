@@ -1,15 +1,11 @@
-
 import logging
+
 from discord import Member, User
 from discord.ext.commands import Context
 from discord.utils import get
 
-from utils.botutils import (get_channel_id, get_guild, get_guild_id,
-                            get_poll_channel_id, get_role, get_role_name)
-
-
-async def is_bot_channel(ctx):
-    return ctx.message.channel.id == get_channel_id()
+from utils.botutils import (get_guild, get_guild_id, get_poll_channel_id,
+                            get_role, get_role_name)
 
 
 async def is_bot_in_guild(ctx: Context):
@@ -36,7 +32,8 @@ async def is_user_in_guild(ctx: Context):
     if result == False:
         logging.info("You are not a member")
         logging.info(f'Guild id: {guild_id}')
-        logging.info(f'Guild ids: {", ".join([guild.id for guild in guilds])} ')
+        logging.info(
+            f'Guild ids: {", ".join([guild.id for guild in guilds])} ')
         guild = get_guild(ctx.bot)
         await ctx.send(f"You are not a member of {guild.name}")
 
