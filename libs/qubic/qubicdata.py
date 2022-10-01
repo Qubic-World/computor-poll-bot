@@ -5,8 +5,6 @@ from enum import Enum
 
 from algorithms.verify import get_public_key_from_id
 
-from qubic.qubicutils import get_protocol_version
-
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
@@ -137,8 +135,12 @@ class BroadcastedComputors(ctypes.Structure):
     _fields_ = [('header', RequestResponseHeader),
                 ('broadcastComputors', BroadcastComputors)]
 
+    @property
+    def epoch(self):
+        return self.broadcastComputors.computors.epoch
 
-__protocol_version = get_protocol_version()
+
+__protocol_version = int(os.getenv('QUBIC_NETWORK_PROTOCOL_VERSION', 0))
 computors_system_data = Computors()
 REQUEST_COMPUTORS_HEADER = RequestResponseHeader(size=ctypes.sizeof(
     RequestResponseHeader), protocol=__protocol_version, type=REQUEST_COMPUTORS)
