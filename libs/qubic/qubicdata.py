@@ -5,12 +5,14 @@ from enum import Enum
 
 from algorithms.verify import get_public_key_from_id
 
+from qubic.qubicutils import get_protocol_version
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
 
 NUMBER_OF_EXCHANGED_PEERS = 4
-NUMBER_OF_COMPUTORS = 26 * 26
+NUMBER_OF_COMPUTORS = 676
 QUORUM = int((NUMBER_OF_COMPUTORS * 2 / 3) + 1)
 SIGNATURE_SIZE = 64
 KEY_SIZE = 32
@@ -52,6 +54,8 @@ EXCHANGE_PUBLIC_PEERS = 0
 BROADCAST_RESOURCE_TESTING_SOLUTION = 1
 BROADCAST_COMPUTORS = 2
 BROADCAST_TICK = 3
+BROADCAST_REVENUES = 4
+REQUEST_COMPUTORS = 11
 
 
 class RequestResponseHeader(ctypes.Structure):
@@ -67,43 +71,6 @@ class ExchangePublicPeers(ctypes.Structure):
     _fields_ = [("peers", c_ip_type * NUMBER_OF_EXCHANGED_PEERS)]
 
 
-class Computors(ctypes.Structure):
-    _fields_ = [("index", ctypes.c_uint32),
-                ("epoch", ctypes.c_int16),
-                ("protocol", ctypes.c_ushort),
-                ("scores", ctypes.c_ulonglong *
-                 (NUMBER_OF_COMPUTORS + (NUMBER_OF_COMPUTORS - QUORUM))),
-                ("public_keys", ctypes.c_uint8 *
-                 ((NUMBER_OF_COMPUTORS + (NUMBER_OF_COMPUTORS - QUORUM)) * KEY_SIZE)),
-                ("signature", c_signature_type)]
-
-
-"""
-static struct System
-{
-    short version;
-    unsigned short epoch;
-    unsigned int tick;
-    Computors computors;
-    unsigned int tickCounters[NUMBER_OF_COMPUTORS];
-    unsigned short decimationCounters[NUMBER_OF_COMPUTORS];
-} system, systemToSave, cachedSystem;
-"""
-
-
-class System(ctypes.Structure):
-    _fields_ = [('version', ctypes.c_short),
-                ('epoch', ctypes.c_ushort),
-                ('tick', ctypes.c_uint32),
-                ('computors', Computors),
-                ('tickCounters', ctypes.c_uint32 * NUMBER_OF_COMPUTORS),
-                ('decimationCounters', ctypes.c_ushort * NUMBER_OF_COMPUTORS)]
-
-
-class BroadcastComputors(ctypes.Structure):
-    _fields_ = [('computors', Computors)]
-
-
 class ResourceTestingSolution(ctypes.Structure):
     _fields_ = [('computorPublicKey', c_public_key_type),
                 ('nonces', c_nonce_type * NUMBER_OF_SOLUTION_NONCES)]
@@ -111,6 +78,17 @@ class ResourceTestingSolution(ctypes.Structure):
 
 class BroadcastResourceTestingSolution(ctypes.Structure):
     _fields_ = [('resourceTestingSolution', ResourceTestingSolution)]
+
+
+class Computors(ctypes.Structure):
+    _fields_ = [("epoch", ctypes.c_int16),
+                ("public_keys", ctypes.c_uint8 *
+                 ((NUMBER_OF_COMPUTORS + (NUMBER_OF_COMPUTORS - QUORUM)) * KEY_SIZE)),
+                ("signature", c_signature_type)]
+
+
+class BroadcastComputors(ctypes.Structure):
+    _fields_ = [('computors', Computors)]
 
 
 class Tick(ctypes.Structure):
@@ -134,4 +112,26 @@ class Tick(ctypes.Structure):
                 ('signature', c_signature_type)]
 
 
+class Revenues(ctypes.Structure):
+    _fields_ = [('computorIndex', ctypes.c_ushort),
+                ('epoch', ctypes.c_ushort),
+                ('revenues', ctypes.c_uint32),
+                ('signature', c_signature_type)]
+
+
+class BroadcastRevenues(ctypes.Structure):
+    _fields_ = [('revenues', Revenues)]
+
+
+class System(ctypes.Structure):
+    _fields_ = [('version', ctypes.c_short),
+                ('epoch', ctypes.c_ushort),
+                ('tick', ctypes.c_uint32),
+                ('computors', Computors),
+                ('tickCounters', ctypes.c_uint32 * NUMBER_OF_COMPUTORS),
+                ('decimationCounters', ctypes.c_ushort * NUMBER_OF_COMPUTORS)]
+
+
 computors_system_data = Computors()
+REQUEST_COMPUTORS_HEADER = RequestResponseHeader(size=ctypes.sizeof(
+    RequestResponseHeader), protocol=get_protocol_version(), type=REQUEST_COMPUTORS)
