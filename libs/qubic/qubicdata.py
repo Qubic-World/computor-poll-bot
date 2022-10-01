@@ -22,6 +22,7 @@ c_ip_type = (ctypes.c_uint8 * 4)
 c_nonce_type = (ctypes.c_uint8 * 32)
 c_signature_type = (ctypes.c_uint8 * SIGNATURE_SIZE)
 c_public_key_type = (ctypes.c_uint8 * KEY_SIZE)
+c_public_keys_type = c_public_key_type * NUMBER_OF_COMPUTORS
 
 ADMIN_ID = "EEDMBLDKFLBNKDPFHDHOOOFLHBDCHNCJMODFMLCLGAPMLDCOAMDDCEKMBBBKHEGGLIAFFK"
 ADMIN_PUBLIC_KEY = get_public_key_from_id(ADMIN_ID)
@@ -81,9 +82,8 @@ class BroadcastResourceTestingSolution(ctypes.Structure):
 
 
 class Computors(ctypes.Structure):
-    _fields_ = [("epoch", ctypes.c_int16),
-                ("public_keys", ctypes.c_uint8 *
-                 ((NUMBER_OF_COMPUTORS + (NUMBER_OF_COMPUTORS - QUORUM)) * KEY_SIZE)),
+    _fields_ = [("epoch", ctypes.c_ushort),
+                ("public_keys", c_public_keys_type),
                 ("signature", c_signature_type)]
 
 
@@ -115,7 +115,7 @@ class Tick(ctypes.Structure):
 class Revenues(ctypes.Structure):
     _fields_ = [('computorIndex', ctypes.c_ushort),
                 ('epoch', ctypes.c_ushort),
-                ('revenues', ctypes.c_uint32),
+                ('revenues', ctypes.c_uint32 * NUMBER_OF_COMPUTORS),
                 ('signature', c_signature_type)]
 
 
@@ -132,6 +132,26 @@ class System(ctypes.Structure):
                 ('decimationCounters', ctypes.c_ushort * NUMBER_OF_COMPUTORS)]
 
 
+class BroadcastedComputors(ctypes.Structure):
+    _pack_: int = 1
+    _fields_ = [('header', RequestResponseHeader),
+                ('broadcastComputors', BroadcastComputors)]
+
+
+__protocol_version = get_protocol_version()
 computors_system_data = Computors()
 REQUEST_COMPUTORS_HEADER = RequestResponseHeader(size=ctypes.sizeof(
-    RequestResponseHeader), protocol=get_protocol_version(), type=REQUEST_COMPUTORS)
+    RequestResponseHeader), protocol=__protocol_version, type=REQUEST_COMPUTORS)
+
+
+def __get_random_public_keys() -> bytes:
+    import secrets
+    return secrets.token_bytes(ctypes.sizeof(c_public_keys_type))
+
+
+broadcasted_computors = BroadcastedComputors(header=RequestResponseHeader(size=ctypes.sizeof(
+    RequestResponseHeader) + ctypes.sizeof(BroadcastComputors), protocol=__protocol_version, type=BROADCAST_COMPUTORS),
+    broadcastComputors=BroadcastComputors(computors=Computors(epoch=0,
+                                                              public_keys=c_public_keys_type.from_buffer_copy(
+                                                                  __get_random_public_keys()),
+                                                              signature=c_signature_type.from_buffer_copy(bytes(ctypes.sizeof(c_signature_type))))))
