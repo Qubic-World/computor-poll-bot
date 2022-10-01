@@ -62,7 +62,6 @@ class HandleBroadcastComputors(Handler):
             logging.info('Computors:')
             if self.__computors is not None:
                 logging.info(f'Epoch: {self.__computors.epoch}')
-                logging.info(f'Protocol: {self.__computors.protocol}')
 
             await asyncio.sleep(1)
 

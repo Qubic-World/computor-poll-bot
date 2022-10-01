@@ -9,15 +9,17 @@ from typing import Any, Optional
 from qubic.qubicdata import (BROADCAST_COMPUTORS,
                              BROADCAST_RESOURCE_TESTING_SOLUTION,
                              BROADCAST_TICK, EXCHANGE_PUBLIC_PEERS,
-                             BroadcastComputors,
+                             REQUEST_COMPUTORS, BroadcastComputors,
                              BroadcastResourceTestingSolution, Computors,
                              ConnectionState, ExchangePublicPeers,
-                             RequestResponseHeader, Tick)
-from qubic.qubicutils import (apply_computors_data, can_apply_computors_data,
+                             RequestResponseHeader, Tick,
+                             broadcasted_computors)
+from qubic.qubicutils import (can_apply_computors_data,
                               exchange_public_peers_to_list,
                               get_header_from_bytes, get_protocol_version,
-                              get_raw_payload, is_valid_broadcast_computors,
-                              is_valid_header, is_valid_ip)
+                              get_raw_payload, is_valid_computors_data,
+                              is_valid_header, is_valid_ip, apply_computors)
+from utils.backgroundtasks import BackgroundTasks
 from utils.callback import Callbacks
 
 
@@ -26,7 +28,7 @@ class QubicNetworkManager():
         self._know_ip = set(public_ip_list)
         self._fogeted_ip = set()
         self._peers = set()
-        self._backgound_tasks = []
+        self._backgound_tasks = BackgroundTasks()
         self.__connection_state: ConnectionState = ConnectionState.NONE
         self.__callbacks = Callbacks()
 
@@ -68,10 +70,8 @@ class QubicNetworkManager():
             self._peers.add(peer)
             peer.add_callback(self.__data_from_peer)
 
-            task = asyncio.create_task(peer.connect(
-                ip, self.port, self.connection_timeout))
-            task.add_done_callback(self._backgound_tasks.remove)
-            self._backgound_tasks.append(task)
+            self._backgound_tasks.create_task(
+                peer.connect, ip, self.port, self.connection_timeout)
 
     def is_free_ip(self, ip) -> bool:
         """Check that there are no connections to this ip
@@ -114,10 +114,7 @@ class QubicNetworkManager():
             self.__connect_to_peer(peer_ip)
 
         self.__connection_state = ConnectionState.CONNECTED
-        task = asyncio.create_task(self.main_loop())
-        task.add_done_callback(self._backgound_tasks.remove)
-        self._backgound_tasks.append(task)
-        await asyncio.gather(task)
+        await self._backgound_tasks.create_and_wait(self.main_loop)
 
     async def stop(self):
         self.__connection_state = ConnectionState.CLOSED
@@ -126,16 +123,6 @@ class QubicNetworkManager():
             tasks.append(peer.stop())
 
         await asyncio.gather(*tasks)
-
-        for task in self._backgound_tasks:
-            task.cancel()
-
-        await asyncio.sleep(0)
-
-        try:
-            await asyncio.gather(*self._backgound_tasks, return_exceptions=True)
-        except asyncio.CancelledError:
-            pass
 
     async def send_other(self, raw_data: bytes, peer_requestor):
         tasks = []
@@ -165,8 +152,8 @@ class Peer():
         self.__writer: Optional[asyncio.StreamWriter] = None
         self.__ip = ""
         self.__state: ConnectionState = ConnectionState.NONE
-        self.__background_tasks = []
         self.__callbacks = Callbacks()
+        self.__backgound_tasks = BackgroundTasks()
 
     @property
     def ip(self):
@@ -206,10 +193,18 @@ class Peer():
             await self._disconection(e)
             return
 
-        task = asyncio.create_task(self.__read_loop())
-        task.add_done_callback(self.__background_tasks.remove)
-        self.__background_tasks.append(task)
-        await asyncio.gather(task)
+        task = self.__backgound_tasks.create_task(self.__read_loop)
+        done, pending = await asyncio.wait([task])
+        result_task: asyncio.Task = None
+        for result_task in done:
+            try:
+                e = result_task.exception()
+            except asyncio.CancelledError:
+                e = None
+                pass
+
+            if e is not None:
+                logging.exception(e)
 
     def add_callback(self, callback):
         self.__callbacks.add_callback(callback=callback)
@@ -246,16 +241,16 @@ class Peer():
                 await self._disconection(e)
                 return
 
-    async def _disconection(self, what):
-        logging.warning(what)
+    async def _disconection(self, what: Optional[str] = None):
+        if what is not None:
+            logging.warning(what)
 
         self.__qubic_manager.foget_peer(self)
         await self.stop()
 
     async def __read_data(self, size) -> bytes:
-        task = asyncio.create_task(self.__reader.readexactly(size))
-        self.__background_tasks.append(task)
-        task.add_done_callback(self.__background_tasks.remove)
+        task = self.__backgound_tasks.create_task(
+            self.__reader.readexactly, size)
 
         raw_data = await asyncio.wait_for(task, self.read_timeout)
 
@@ -293,6 +288,7 @@ class Peer():
                 raw_payload = get_raw_payload(raw_data)
 
             except Exception as e:
+                logging.exception(e)
                 await self._disconection(e)
                 return
 
@@ -305,11 +301,19 @@ class Peer():
                     header_type=EXCHANGE_PUBLIC_PEERS, data=exchange_public_peers)
 
             if header_type == BROADCAST_COMPUTORS:
-                broadcast_computors = BroadcastComputors.from_buffer_copy(raw_payload)
-                computors:Computors = broadcast_computors.computors
-                if is_valid_broadcast_computors(computors):
-                    if can_apply_computors_data(computors=computors):
-                        await apply_computors_data(computors)
+                try:
+                    broadcast_computors = BroadcastComputors.from_buffer_copy(
+                        raw_payload)
+                except Exception as e:
+                    logging.exception(e)
+                    await self._disconection()
+                    return
+
+                computors: Computors = broadcast_computors.computors
+                if can_apply_computors_data(computors=computors):
+                    if is_valid_computors_data(computors):
+                        apply_computors(computors=computors)
+
                         self.__callbacks.execute(
                             header_type=BROADCAST_COMPUTORS, data=broadcast_computors)
             elif header_type == BROADCAST_RESOURCE_TESTING_SOLUTION:
@@ -321,12 +325,17 @@ class Peer():
                     # TODO: add verify check
                     self.__callbacks.execute(
                         header_type=header_type, data=tick)
+            elif header_type == REQUEST_COMPUTORS:
+                logging.info('REQUEST_COMPUTORS')
+                if broadcasted_computors.epoch >= 0:
+                    logging.info('Send broadcasted_computors')
+                    self.__backgound_tasks.create_task(
+                        self.send_data, bytes(broadcasted_computors))
+                # Do not send this request to other piers
+                continue
 
-            task = asyncio.create_task(
-                self.__qubic_manager.send_other(raw_data, self))
-            if not task.done():
-                self.__background_tasks.append(task)
-                task.add_done_callback(self.__background_tasks.remove)
+            self.__backgound_tasks.create_task(
+                self.__qubic_manager.send_other, raw_data, self)
 
     async def __read_message(self):
         if self.__state != ConnectionState.CONNECTED:
@@ -334,10 +343,8 @@ class Peer():
 
         # Reading Header
         try:
-            task = asyncio.create_task(
-                self.__read_data(sizeof(RequestResponseHeader)))
-            self.__background_tasks.append(task)
-            task.add_done_callback(self.__background_tasks.remove)
+            task = self.__backgound_tasks.create_task(
+                self.__read_data, sizeof(RequestResponseHeader))
             raw_header = await asyncio.wait_for(task, self.read_timeout)
         except Exception as e:
             raise e
@@ -369,14 +376,14 @@ class Peer():
             #     pass
 
     async def stop(self):
-        print("Stop Peer")
+        logging.info("Stop Peer")
         self.__state = ConnectionState.CLOSED
 
-        print("Cancel connect")
+        logging.info("Cancel connect")
         if self.__connect_task != None:
             await self.cancel_task(self.__connect_task)
 
-        print("Close write")
+        logging.info("Close write")
         if self.__writer != None and not self.__writer.is_closing():
             self.__writer.close()
             try:
@@ -384,6 +391,4 @@ class Peer():
             except ConnectionResetError:
                 pass
 
-        print("Cancel backgroud")
-        for task in self.__background_tasks:
-            await self.cancel_task(task)
+        await self.__backgound_tasks.close()

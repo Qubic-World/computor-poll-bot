@@ -1,6 +1,4 @@
-import logging
 import os
-import re
 import sys
 from ctypes import sizeof
 from os import getenv
@@ -10,8 +8,8 @@ from algorithms.verify import get_identity, kangaroo_twelve, verify
 
 from qubic.qubicdata import (ADMIN_PUBLIC_KEY, EMPTY_PUBLIC_KEY,
                              SIGNATURE_SIZE, Computors, ExchangePublicPeers,
-                             RequestResponseHeader, System, c_ip_type,
-                             computors_system_data)
+                             RequestResponseHeader, c_ip_type,
+                             computors_system_data, broadcasted_computors)
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
@@ -110,20 +108,15 @@ def get_raw_payload(raw_data: bytes):
     return raw_data[sizeof(header):]
 
 
-def is_valid_broadcast_computors(payload: Computors) -> bool:
-    if payload.protocol != get_protocol_version():
-        return False
-
+def is_valid_computors_data(payload: Computors) -> bool:
     # Checking signature
-    print(f"Sizeof Computors: {sizeof(payload)}")
     data_withou_signature = bytes(payload)[:sizeof(Computors) - SIGNATURE_SIZE]
-    print(f"Len butes: {len(data_withou_signature)}")
     digest = kangaroo_twelve(data_withou_signature)
     return verify(ADMIN_PUBLIC_KEY, digest, bytes(payload.signature))
 
 
 def can_apply_computors_data(computors: Computors):
-    return computors.epoch > computors_system_data.epoch or (computors.epoch == computors_system_data.epoch and computors.index > computors_system_data.index)
+    return computors.epoch > broadcasted_computors.epoch
 
 
 async def cache_computors(computors: Computors):
@@ -139,29 +132,6 @@ def get_comutors_system_data():
     return computors_system_data
 
 
-async def load_cache_computors():
-    if not os.path.isfile(COMPUTORS_CACHE_PATH):
-        return
-
-    async with aiofiles.open(COMPUTORS_CACHE_PATH, "rb") as f:
-        global computors_system_data
-        b = await f.read()
-        len_b = len(b)
-        logging.info(
-            f'Len bytes: {len_b}, sizeof System: {sizeof(System)}, sizeof Computors: {sizeof(Computors)}')
-        if len_b == sizeof(System):
-            logging.info('Loading computors from System')
-            system = System.from_buffer_copy(b)
-            computors_system_data = system.computors
-            return
-
-        if len_b != sizeof(Computors):
-            return
-
-        logging.info('Loading computors from Computors')
-        computors_system_data = Computors.from_buffer_copy(b)
-
-
 def get_identities_from_computors(computors: Computors):
     identities = []
     raw_public_key_list = list(bytes(computors.public_keys))
@@ -173,19 +143,7 @@ def get_identities_from_computors(computors: Computors):
     return identities
 
 
-async def apply_computors_data(computors: Computors):
-    if can_apply_computors_data(computors):
-        await cache_computors(computors)
-        # identity = []
-        # raw_public_key_list = list(bytes(computors.public_keys))
-        # for idx in range(0, len(raw_public_key_list), 32):
-        #     public_key = bytes(computors.public_keys[idx: idx + 32])
-        #     if public_key != EMPTY_PUBLIC_KEY:
-        #         identity.append(get_identity(public_key))
+def apply_computors(computors: Computors):
+    global broadcasted_computors
 
-        # identity_manager.apply_identity(identity)
-
-        # # TODO: The identity save to file can be removed, as the public keys are stored in COMPUTORS_CACHE_PATH
-        # # await cache_computors(computors)
-        # # await identity_manager.save_to_file()
-        # await asyncio.gather(cache_computors(computors), identity_manager.save_to_file())
+    broadcasted_computors.broadcastComputors.computors = computors

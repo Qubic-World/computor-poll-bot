@@ -12,8 +12,7 @@ from dotenv import load_dotenv
 from nats.aio.client import Client
 from qubic.qubicdata import BroadcastComputors, Computors, Subjects
 from qubic.qubicutils import (cache_computors, get_comutors_system_data,
-                              get_identities_from_computors,
-                              load_cache_computors)
+                              get_identities_from_computors)
 
 from checkers import has_role_in_guild, is_bot_in_guild
 from commands.pool import pool_commands
@@ -77,8 +76,7 @@ async def on_ready():
     poll_cog = PollCog(poll_bot)
     register_cog = RegisterCog(poll_bot)
     await asyncio.wait({
-        asyncio.create_task(poll_cog._load_polls_from_file()),
-        asyncio.create_task(load_cache_computors())
+        asyncio.create_task(poll_cog._load_polls_from_file())
     })
     await poll_bot.add_cog(poll_cog)
     await poll_bot.add_cog(register_cog)

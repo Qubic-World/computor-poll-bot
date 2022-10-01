@@ -125,9 +125,7 @@ class System(ctypes.Structure):
     _fields_ = [('version', ctypes.c_short),
                 ('epoch', ctypes.c_ushort),
                 ('tick', ctypes.c_uint32),
-                ('computors', Computors),
-                ('tickCounters', ctypes.c_uint32 * NUMBER_OF_COMPUTORS),
-                ('decimationCounters', ctypes.c_ushort * NUMBER_OF_COMPUTORS)]
+                ('tickCounters', ctypes.c_uint32 * NUMBER_OF_COMPUTORS)]
 
 
 class BroadcastedComputors(ctypes.Structure):
