@@ -7,18 +7,24 @@ from algorithms.verify import get_score
 from custom_nats.custom_nats import Nats
 from custom_nats.handler import Handler, HandlerStarter
 from nats.aio.msg import Msg
-from qubic.qubicdata import (NUMBER_OF_SOLUTION_NONCES, BroadcastComputors,
+from qubic.qubicdata import (NUMBER_OF_COMPUTORS, NUMBER_OF_SOLUTION_NONCES,
+                             BroadcastComputors,
                              BroadcastResourceTestingSolution, Computors,
-                             ResourceTestingSolution, Subjects, Tick, DataSubjects)
-from qubic.qubicutils import get_identity
+                             DataSubjects, ResourceTestingSolution, Revenues,
+                             Subjects, Tick)
+from qubic.qubicutils import get_identity, get_identities_from_computors
 from utils.backgroundtasks import BackgroundTasks
+import zlib
 
 
 class DataContainer():
-    __ticks = dict()
     __SEND_INTERVAL_S = 10
+    __ticks = dict()
     __scores = dict()
     __btasks = BackgroundTasks()
+    __revenues = [[None for _ in range(
+        NUMBER_OF_COMPUTORS)]] * NUMBER_OF_COMPUTORS
+    __computors: Optional[Computors] = None
 
     @classmethod
     def add_tick(cls, computor_index: int, new_tick: int):
@@ -33,8 +39,39 @@ class DataContainer():
             DataContainer.__scores[identity] = new_score
 
     @classmethod
+    def add_revenues(cls, index_sender: int, revenues: list):
+        for idx, r in enumerate(revenues):
+            cls.__revenues[idx][index_sender] = r
+
+    @classmethod
+    def add_computors(cls, computors: Computors):
+        if cls.__computors is None or cls.__computors.epoch < computors.epoch:
+            cls.__computors = computors
+            cls.clear_after_change_epoch()
+
+    @classmethod
+    def clear_after_change_epoch(cls):
+        cls.__revenues = [[None for _ in range(
+            NUMBER_OF_COMPUTORS)]] * NUMBER_OF_COMPUTORS
+        cls.__scores.clear()
+        cls.__ticks.clear()
+
+    @classmethod
     def get_ticks(cls) -> dict:
         return cls.__ticks
+
+    @classmethod
+    def get_revenues(cls) -> dict:
+        if cls.__computors is None:
+            return dict()
+
+        pretty_revenues = dict()
+        identities = get_identities_from_computors(cls.__computors)
+        for idx, r_list in enumerate(cls.__revenues):
+            pretty_revenues[identities[idx]] = sorted(
+                [rev for rev in r_list if rev is not None])
+
+        return pretty_revenues
 
     @classmethod
     async def send_data(cls):
@@ -61,14 +98,23 @@ class DataContainer():
                 tasks.add(cls.__btasks.create_task(nc.publish,
                                                    DataSubjects.SCORES, json.dumps(cls.__scores).encode()))
 
+            try:
+                revenues = cls.get_revenues()
+                if len(revenues) > 0:
+                    logging.info(f'Send revenues')
+                    compressed_revenues = zlib.compress(
+                        json.dumps(revenues).encode())
+                    tasks.add(cls.__btasks.create_task(nc.publish,
+                                                       DataSubjects.REVENUES, compressed_revenues))
+            except Exception as e:
+                logging.exception(e)
+
             await asyncio.wait(tasks)
 
 
 class HandleBroadcastComputors(Handler):
     def __init__(self, nc: Nats) -> None:
         super().__init__(nc)
-
-        self.__computors: Optional[Computors] = None
 
     async def get_sub(self):
         if self._nc.is_disconected:
@@ -80,8 +126,13 @@ class HandleBroadcastComputors(Handler):
         if msg is None or len(msg.data) < sizeof(BroadcastComputors):
             return
 
-        broadcast_computors = BroadcastComputors.from_buffer_copy(msg.data)
-        self.__computors = broadcast_computors.computors
+        try:
+            logging.info('Got computors')
+            DataContainer.add_computors(
+                BroadcastComputors.from_buffer_copy(msg.data).computors)
+        except Exception as e:
+            logging.exception(e)
+            return
 
 
 class HandleBroadcastResourceTestingSolution(Handler):
@@ -114,6 +165,29 @@ class HandleBroadcastResourceTestingSolution(Handler):
             bytes(resourceTestingSolution.nonces), NUMBER_OF_SOLUTION_NONCES)
 
         DataContainer.add_scores(identity=identity, new_score=new_score)
+
+
+class HandlerRevenues(Handler):
+    async def get_sub(self):
+        if self._nc.is_disconected:
+            return None
+
+        return await self._nc.subscribe(Subjects.BROADCAST_REVENUES)
+
+    async def _handler_msg(self, msg: Msg):
+        if msg is None or len(msg.data) <= 0:
+            return
+
+        data = msg.data
+
+        try:
+            revenues = Revenues.from_buffer_copy(data)
+        except Exception as e:
+            logging.exception(e)
+            return
+
+        DataContainer.add_revenues(
+            revenues.computorIndex, list(revenues.revenues))
 
 
 class HandleBroadcastTick(Handler):
@@ -156,9 +230,12 @@ async def main():
     tasks = [
         asyncio.create_task(HandlerStarter.start(
             HandleBroadcastResourceTestingSolution(nc))),
-        asyncio.create_task(HandlerStarter.start(HandleBroadcastTick(nc))),
+        asyncio.create_task(HandlerStarter.start(
+            HandleBroadcastTick(nc))),
         asyncio.create_task(HandlerStarter.start(
             HandleBroadcastComputors(nc))),
+        asyncio.create_task(HandlerStarter.start(
+            HandlerRevenues(nc))),
         asyncio.create_task(DataContainer.send_data())
     ]
 

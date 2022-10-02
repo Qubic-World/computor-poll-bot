@@ -21,6 +21,7 @@ c_nonce_type = (ctypes.c_uint8 * 32)
 c_signature_type = (ctypes.c_uint8 * SIGNATURE_SIZE)
 c_public_key_type = (ctypes.c_uint8 * KEY_SIZE)
 c_public_keys_type = c_public_key_type * NUMBER_OF_COMPUTORS
+c_revenues_type = ctypes.c_uint32 * NUMBER_OF_COMPUTORS
 
 ADMIN_ID = "EEDMBLDKFLBNKDPFHDHOOOFLHBDCHNCJMODFMLCLGAPMLDCOAMDDCEKMBBBKHEGGLIAFFK"
 ADMIN_PUBLIC_KEY = get_public_key_from_id(ADMIN_ID)
@@ -116,7 +117,7 @@ class Tick(ctypes.Structure):
 class Revenues(ctypes.Structure):
     _fields_ = [('computorIndex', ctypes.c_ushort),
                 ('epoch', ctypes.c_ushort),
-                ('revenues', ctypes.c_uint32 * NUMBER_OF_COMPUTORS),
+                ('revenues', c_revenues_type),
                 ('signature', c_signature_type)]
 
 

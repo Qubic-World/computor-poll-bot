@@ -3,7 +3,6 @@ import ctypes
 import logging
 from ctypes import sizeof
 from os import getenv
-from random import shuffle
 from typing import Any, Optional
 
 from qubic.qubicdata import (BROADCAST_COMPUTORS,
@@ -14,12 +13,14 @@ from qubic.qubicdata import (BROADCAST_COMPUTORS,
                              BroadcastResourceTestingSolution, Computors,
                              ConnectionState, ExchangePublicPeers,
                              RequestResponseHeader, Revenues, Tick,
-                             broadcasted_computors, NUMBER_OF_COMPUTORS, ISSUANCE_RATE)
+                             broadcasted_computors)
 from qubic.qubicutils import (apply_computors, can_apply_computors_data,
+                              can_apply_revenues,
                               exchange_public_peers_to_list,
                               get_header_from_bytes, get_protocol_version,
                               get_raw_payload, is_valid_computors_data,
-                              is_valid_header, is_valid_ip, can_apply_revenues, is_valid_revenues_data)
+                              is_valid_header, is_valid_ip,
+                              is_valid_revenues_data)
 from utils.backgroundtasks import BackgroundTasks
 from utils.callback import Callbacks
 
@@ -129,12 +130,21 @@ class QubicNetworkManager():
 
             await asyncio.sleep(1)
 
+    async def send_computors(self):
+        while self.__connection_state == ConnectionState.CONNECTED:
+            if broadcasted_computors.epoch > 0:
+                self.__data_from_peer(
+                    header_type=BROADCAST_COMPUTORS, data=broadcasted_computors.broadcastComputors)
+
+            await asyncio.sleep(30)
+
     async def start(self):
         self.__connection_state = ConnectionState.CONNECTING
         for ip in self.know_ip:
             self._backgound_tasks.create_task(self.connect_to_peer, ip)
 
         self.__connection_state = ConnectionState.CONNECTED
+        self._backgound_tasks.create_task(self.send_computors)
         await self._backgound_tasks.create_and_wait(self.main_loop)
 
     async def stop(self):

@@ -156,6 +156,12 @@ def get_comutors_system_data():
 
 def get_identities_from_computors(computors: Computors):
     identities = []
+
+    for public_key in computors.public_keys:
+        identities.append(get_identity(bytes(public_key)))
+
+    return identities
+
     raw_public_key_list = list(bytes(computors.public_keys))
     for idx in range(0, len(raw_public_key_list), 32):
         public_key = bytes(computors.public_keys[idx: idx + 32])
