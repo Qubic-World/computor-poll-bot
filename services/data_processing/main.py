@@ -1,5 +1,4 @@
 import asyncio
-import itertools
 import logging
 from ctypes import sizeof
 from typing import Optional
@@ -12,17 +11,26 @@ from qubic.qubicdata import (NUMBER_OF_SOLUTION_NONCES, BroadcastComputors,
                              BroadcastResourceTestingSolution, Computors,
                              ResourceTestingSolution, Subjects, Tick, DataSubjects)
 from qubic.qubicutils import get_identity
+from utils.backgroundtasks import BackgroundTasks
 
 
 class DataContainer():
     __ticks = dict()
     __SEND_INTERVAL_S = 10
+    __scores = dict()
+    __btasks = BackgroundTasks()
 
     @classmethod
     def add_tick(cls, computor_index: int, new_tick: int):
         found_tick = cls.__ticks.setdefault(computor_index, new_tick)
         if found_tick < new_tick:
             cls.__ticks[computor_index] = new_tick
+
+    @classmethod
+    def add_scores(cls, identity, new_score: int):
+        found_score = DataContainer.__scores.setdefault(identity, new_score)
+        if found_score < new_score:
+            DataContainer.__scores[identity] = new_score
 
     @classmethod
     def get_ticks(cls) -> dict:
@@ -38,14 +46,20 @@ class DataContainer():
             return
 
         while not nc.is_disconected:
-            logging.info('Sending data')
             tasks = set()
             tasks.add(asyncio.create_task(
                 asyncio.sleep(cls.__SEND_INTERVAL_S)))
 
-            if len(cls.__ticks) >= 0:
-                tasks.add(asyncio.create_task(nc.publish(DataSubjects.TICKS,
-                                                         json.dumps(cls.__ticks).encode())))
+            tick_number = len(cls.__ticks)
+            if tick_number > 0:
+                logging.info(f'Send ticks: {tick_number}')
+                tasks.add(cls.__btasks.create_task(nc.publish,
+                                                   DataSubjects.TICKS, json.dumps(cls.__ticks).encode()))
+            score_number = len(cls.__scores)
+            if score_number > 0:
+                logging.info(f'Send scores: {score_number}')
+                tasks.add(cls.__btasks.create_task(nc.publish,
+                                                   DataSubjects.SCORES, json.dumps(cls.__scores).encode))
 
             await asyncio.wait(tasks)
 
@@ -55,15 +69,6 @@ class HandleBroadcastComputors(Handler):
         super().__init__(nc)
 
         self.__computors: Optional[Computors] = None
-        self.add_task(asyncio.create_task(self.print_computors()))
-
-    async def print_computors(self):
-        while True:
-            logging.info('Computors:')
-            if self.__computors is not None:
-                logging.info(f'Epoch: {self.__computors.epoch}')
-
-            await asyncio.sleep(1)
 
     async def get_sub(self):
         if self._nc.is_disconected:
@@ -82,15 +87,6 @@ class HandleBroadcastComputors(Handler):
 class HandleBroadcastResourceTestingSolution(Handler):
     def __init__(self, nc: Nats) -> None:
         super().__init__(nc)
-
-        self.__scores = dict()
-
-        self.add_task(asyncio.create_task(self.print_scores()))
-
-    async def print_scores(self):
-        while True:
-            logging.info(f'Scores:\n{self.__scores}')
-            await asyncio.sleep(1)
 
     async def get_sub(self):
         if self._nc.is_disconected:
@@ -117,25 +113,12 @@ class HandleBroadcastResourceTestingSolution(Handler):
         new_score = get_score(
             bytes(resourceTestingSolution.nonces), NUMBER_OF_SOLUTION_NONCES)
 
-        found_score = self.__scores.get(identity, 0)
-        if found_score < new_score:
-            self.__scores[identity] = new_score
+        DataContainer.add_scores(identity=identity, new_score=new_score)
 
 
 class HandleBroadcastTick(Handler):
     def __init__(self, nc: Nats) -> None:
         super().__init__(nc)
-
-        self.add_task(asyncio.create_task(self.print_ticks()))
-
-    async def print_ticks(self):
-        while True:
-            sorted_ticks = sorted(
-                DataContainer.get_ticks().values(), reverse=True)
-            pretty_ticks = [(key, len(list(group)))
-                            for key, group in itertools.groupby(sorted_ticks)]
-            logging.info(f'Ticks:\n{pretty_ticks}')
-            await asyncio.sleep(1)
 
     async def get_sub(self):
         if self._nc.is_disconected:

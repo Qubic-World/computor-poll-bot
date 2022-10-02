@@ -8,22 +8,25 @@ from typing import Any, Optional
 
 from qubic.qubicdata import (BROADCAST_COMPUTORS,
                              BROADCAST_RESOURCE_TESTING_SOLUTION,
-                             BROADCAST_TICK, EXCHANGE_PUBLIC_PEERS,
-                             REQUEST_COMPUTORS, BroadcastComputors,
+                             BROADCAST_REVENUES, BROADCAST_TICK,
+                             EXCHANGE_PUBLIC_PEERS, REQUEST_COMPUTORS,
+                             REQUEST_COMPUTORS_HEADER, BroadcastComputors,
                              BroadcastResourceTestingSolution, Computors,
                              ConnectionState, ExchangePublicPeers,
-                             RequestResponseHeader, Tick,
-                             broadcasted_computors)
-from qubic.qubicutils import (can_apply_computors_data,
+                             RequestResponseHeader, Revenues, Tick,
+                             broadcasted_computors, NUMBER_OF_COMPUTORS, ISSUANCE_RATE)
+from qubic.qubicutils import (apply_computors, can_apply_computors_data,
                               exchange_public_peers_to_list,
                               get_header_from_bytes, get_protocol_version,
                               get_raw_payload, is_valid_computors_data,
-                              is_valid_header, is_valid_ip, apply_computors)
+                              is_valid_header, is_valid_ip, can_apply_revenues, is_valid_revenues_data)
 from utils.backgroundtasks import BackgroundTasks
 from utils.callback import Callbacks
 
 
 class QubicNetworkManager():
+    NUBMER_OF_CONNECTION = 10
+
     def __init__(self, public_ip_list: list) -> None:
         self._know_ip = set(public_ip_list)
         self._fogeted_ip = set()
@@ -31,11 +34,41 @@ class QubicNetworkManager():
         self._backgound_tasks = BackgroundTasks()
         self.__connection_state: ConnectionState = ConnectionState.NONE
         self.__callbacks = Callbacks()
+        self.__semaphore = asyncio.Semaphore(
+            QubicNetworkManager.NUBMER_OF_CONNECTION)
+
+    async def connect_to_peer(self, ip):
+        if not is_valid_ip(ip):
+            logging.warning(
+                f'{self.connect_to_peer.__name__}: {ip} is not valid')
+            return
+        if not self.is_free_ip(ip):
+            logging.info(f'{self.connect_to_peer.__name__}: {ip} is connected')
+            return
+
+        async with self.__semaphore:
+            peer = Peer(self)
+            self._peers.add(peer)
+            peer.add_callback(self.__data_from_peer)
+
+            try:
+                await peer.connect(ip=ip, port=self.port, timeout=self.connection_timeout)
+            except Exception as e:
+                logging.exception(e)
+            except BaseException as e:
+                logging.exception(e)
+                raise e
+
+            if peer.state is not ConnectionState.CLOSED:
+                await peer._disconection()
+
+        # TODO: reconnect to all when the number of connected peers <= 2
 
     def add_ip(self, ip_set: set):
         for ip in ip_set:
-            if is_valid_ip(ip):
+            if is_valid_ip(ip) and ip not in self._know_ip:
                 self._know_ip.add(ip)
+                self._backgound_tasks.create_task(self.connect_to_peer, ip)
 
     @property
     def know_ip(self):
@@ -64,14 +97,14 @@ class QubicNetworkManager():
         """
         self.__callbacks.execute(header_type=header_type, data=data)
 
-    def __connect_to_peer(self, ip: str):
-        if is_valid_ip(ip):
-            peer = Peer(self)
-            self._peers.add(peer)
-            peer.add_callback(self.__data_from_peer)
+    # def __connect_to_peer(self, ip: str):
+    #     if is_valid_ip(ip):
+    #         peer = Peer(self)
+    #         self._peers.add(peer)
+    #         peer.add_callback(self.__data_from_peer)
 
-            self._backgound_tasks.create_task(
-                peer.connect, ip, self.port, self.connection_timeout)
+    #         self._backgound_tasks.create_task(
+    #             peer.connect, ip, self.port, self.connection_timeout)
 
     def is_free_ip(self, ip) -> bool:
         """Check that there are no connections to this ip
@@ -82,36 +115,24 @@ class QubicNetworkManager():
         return True
 
     async def main_loop(self):
-        NUBMER_OF_CONNECTION = 10
         while self.__connection_state == ConnectionState.CONNECTED:
-            number_of_available_slots = NUBMER_OF_CONNECTION - len(self._peers)
-            if len(self._peers) != NUBMER_OF_CONNECTION:
+            connected = self.NUBMER_OF_CONNECTION - self.__semaphore._value
+            waiters = len(self.__semaphore._waiters)
 
-                # If there are few known peers left, try reconnecting to forgotten ones
-                if len(self._know_ip) <= 2 and len(self._fogeted_ip) > 0:
-                    self._know_ip = self._know_ip.union(self._fogeted_ip)
-                    self._fogeted_ip.clear()
+            logging.info(f'Epoch: {broadcasted_computors.epoch}')
 
-                if len(self._know_ip) > 0:
-                    list_ip = list(self._know_ip)
-                    shuffle(list_ip)
-                    for ip in list_ip:
-                        if self.is_free_ip(ip) and is_valid_ip(ip):
-                            self.__connect_to_peer(ip)
-                            number_of_available_slots = number_of_available_slots - 1
-                            if number_of_available_slots == 0:
-                                break
+            logging.info(
+                f'Maximum number of connections: {self.NUBMER_OF_CONNECTION}. Connected peers: {connected}. Waiting in line for connection: {waiters}')
 
-            num_of_connected = len(
-                [peer for peer in self._peers if peer.state == ConnectionState.CONNECTED])
+            ips = [ip for ip in [peer.ip for peer in self._peers]]
+            logging.info(f'Connected to {", ".join(ips)}')
 
-            print(f"Connected: {num_of_connected}")
             await asyncio.sleep(1)
 
     async def start(self):
         self.__connection_state = ConnectionState.CONNECTING
-        for peer_ip in self._know_ip:
-            self.__connect_to_peer(peer_ip)
+        for ip in self.know_ip:
+            self._backgound_tasks.create_task(self.connect_to_peer, ip)
 
         self.__connection_state = ConnectionState.CONNECTED
         await self._backgound_tasks.create_and_wait(self.main_loop)
@@ -235,8 +256,12 @@ class Peer():
                 exchange_public_peers.peers[i] = ip_to_ctypes(
                     random_ip_list[i])
 
+            send_bytes = bytes(header) + bytes(exchange_public_peers)
+            if broadcasted_computors.epoch <= 0:
+                logging.info(f'REQUEST_COMPUTORS')
+                send_bytes += bytes(REQUEST_COMPUTORS_HEADER)
             try:
-                await self.send_data(bytes(header) + bytes(exchange_public_peers))
+                await self.send_data(send_bytes)
             except Exception as e:
                 await self._disconection(e)
                 return
@@ -301,6 +326,7 @@ class Peer():
                     header_type=EXCHANGE_PUBLIC_PEERS, data=exchange_public_peers)
 
             if header_type == BROADCAST_COMPUTORS:
+                logging.info('BROADCAST_COMPUTORS')
                 try:
                     broadcast_computors = BroadcastComputors.from_buffer_copy(
                         raw_payload)
@@ -317,6 +343,7 @@ class Peer():
                         self.__callbacks.execute(
                             header_type=BROADCAST_COMPUTORS, data=broadcast_computors)
             elif header_type == BROADCAST_RESOURCE_TESTING_SOLUTION:
+                logging.info('BROADCAST_RESOURCE_TESTING_SOLUTION')
                 self.__callbacks.execute(
                     header_type=header_type, data=BroadcastResourceTestingSolution.from_buffer_copy(raw_payload))
             elif header_type == BROADCAST_TICK:
@@ -333,6 +360,25 @@ class Peer():
                         self.send_data, bytes(broadcasted_computors))
                 # Do not send this request to other piers
                 continue
+            elif header_type == BROADCAST_REVENUES:
+                logging.info('BROADCAST_REVENUES')
+
+                try:
+                    revenues = Revenues.from_buffer_copy(raw_payload)
+                except Exception as e:
+                    logging.exception(e)
+                    await self._disconection(None)
+                    return
+
+                if not can_apply_revenues(revenues=revenues):
+                    continue
+
+                if not is_valid_revenues_data(revenues):
+                    logging.warning('Revenues failed the signature check')
+                    continue
+
+                self.__callbacks.execute(
+                    header_type=header_type, data=revenues)
 
             self.__backgound_tasks.create_task(
                 self.__qubic_manager.send_other, raw_data, self)

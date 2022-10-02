@@ -26,6 +26,7 @@ ADMIN_ID = "EEDMBLDKFLBNKDPFHDHOOOFLHBDCHNCJMODFMLCLGAPMLDCOAMDDCEKMBBBKHEGGLIAF
 ADMIN_PUBLIC_KEY = get_public_key_from_id(ADMIN_ID)
 EMPTY_PUBLIC_KEY = bytes(KEY_SIZE)
 NUMBER_OF_SOLUTION_NONCES = 1000
+ISSUANCE_RATE = 1000000000000
 
 
 class ConnectionState(Enum):
@@ -40,11 +41,13 @@ class Subjects:
     EXCHANGE_PUBLIC_PEERS = 'qubic.data.exchange_public_peers'
     BROADCAST_TICK = 'qubic.data.broadcast_tick'
     BROADCAST_RESOURCE_TESTING_SOLUTION = 'qubic.data.broadcast_resource_testing_solution'
+    BROADCAST_REVENUES = 'qubic.data.broadcast_revenues'
 
 
 class DataSubjects:
     TICKS = 'qubic.data.ticks'
     SCORES = 'qubic.data.scores'
+    REVENUES = 'qubic.data.revenues'
 
 
 """Network packages

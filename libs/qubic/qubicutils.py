@@ -6,10 +6,12 @@ from os import getenv
 import aiofiles
 from algorithms.verify import get_identity, kangaroo_twelve, verify
 
-from qubic.qubicdata import (ADMIN_PUBLIC_KEY, EMPTY_PUBLIC_KEY,
-                             SIGNATURE_SIZE, Computors, ExchangePublicPeers,
-                             RequestResponseHeader, c_ip_type,
-                             computors_system_data, broadcasted_computors)
+from qubic.qubicdata import (ADMIN_PUBLIC_KEY, BROADCAST_REVENUES,
+                             EMPTY_PUBLIC_KEY, ISSUANCE_RATE,
+                             NUMBER_OF_COMPUTORS, SIGNATURE_SIZE, Computors,
+                             ExchangePublicPeers, RequestResponseHeader,
+                             Revenues, broadcasted_computors, c_ip_type,
+                             computors_system_data)
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
@@ -106,6 +108,26 @@ def get_raw_payload(raw_data: bytes):
         raise ValueError("The data cannot be smaller than header.size")
 
     return raw_data[sizeof(header):]
+
+
+def can_apply_revenues(revenues: Revenues) -> bool:
+    if revenues.computorIndex >= NUMBER_OF_COMPUTORS:
+        return False
+
+    for i in range(0, NUMBER_OF_COMPUTORS):
+        if revenues.revenues[i] > (ISSUANCE_RATE / NUMBER_OF_COMPUTORS):
+            return False
+
+    return True
+
+
+def is_valid_revenues_data(revenues: Revenues) -> bool:
+    revenues.computorIndex ^= BROADCAST_REVENUES
+    data_without_signature = bytes(
+        revenues)[:sizeof(Revenues) - SIGNATURE_SIZE]
+    digest = kangaroo_twelve(data_without_signature)
+    revenues.computorIndex ^= BROADCAST_REVENUES
+    return verify(bytes(broadcasted_computors.broadcastComputors.computors.public_keys[revenues.computorIndex]), digest, bytes(revenues.signature))
 
 
 def is_valid_computors_data(payload: Computors) -> bool:

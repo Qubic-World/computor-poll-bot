@@ -5,9 +5,10 @@ from typing import Any
 from custom_nats.custom_nats import Nats
 from qubic.qubicdata import (BROADCAST_COMPUTORS,
                              BROADCAST_RESOURCE_TESTING_SOLUTION,
-                             BROADCAST_TICK, EXCHANGE_PUBLIC_PEERS,
-                             BroadcastResourceTestingSolution, BroadcastComputors,
-                             ExchangePublicPeers, Subjects, Tick)
+                             BROADCAST_REVENUES, BROADCAST_TICK,
+                             EXCHANGE_PUBLIC_PEERS, BroadcastComputors,
+                             BroadcastResourceTestingSolution,
+                             ExchangePublicPeers, Revenues, Subjects, Tick)
 
 from manager import QubicNetworkManager
 
@@ -34,6 +35,8 @@ async def publish_data(header_type: int, data: Any):
     elif header_type == BROADCAST_TICK and isinstance(data, Tick):
         # logging.debug('BROADCAST_TICK')
         await nc.publish(Subjects.BROADCAST_TICK, payload=bytes(data))
+    elif header_type == BROADCAST_REVENUES and isinstance(data, Revenues):
+        await nc.publish(Subjects.BROADCAST_REVENUES, payload=bytes(data))
 
 
 async def main():
