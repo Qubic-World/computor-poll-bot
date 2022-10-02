@@ -59,7 +59,7 @@ class DataContainer():
             if score_number > 0:
                 logging.info(f'Send scores: {score_number}')
                 tasks.add(cls.__btasks.create_task(nc.publish,
-                                                   DataSubjects.SCORES, json.dumps(cls.__scores).encode))
+                                                   DataSubjects.SCORES, json.dumps(cls.__scores).encode()))
 
             await asyncio.wait(tasks)
 
