@@ -27,6 +27,7 @@ from role import RoleManager
 intents = Intents.default()
 intents.members = True
 intents.messages = True
+intents.message_content = True
 poll_bot = commands.Bot(command_prefix="/", intents=intents)
 
 """Managers
@@ -102,14 +103,14 @@ async def on_ready():
     await role_manager.reassign_roles()
 
 
-def main():
+async def main():
     # Read from .env
     load_dotenv()
 
-    loop = asyncio.get_event_loop()
+    # loop = asyncio.get_event_loop()
 
     global __nc
-    __nc = loop.run_until_complete(custom_nats.Nats().connect())
+    __nc = await custom_nats.Nats().connect()
 
     if __nc is None:
         logging.error('Failed to connect to nats server')
@@ -122,11 +123,11 @@ def main():
     token = os.environ.get("BOT_ACCESS_TOKEN")
 
     # Loading user data and identities
-    loop.run_until_complete(asyncio.wait({
-        loop.create_task(user_data.load_from_file()),
-        loop.create_task(identity_manager.load_from_file()),
-        loop.create_task(load_computors())
-    }))
+    await asyncio.wait({
+        asyncio.create_task(user_data.load_from_file()),
+        asyncio.create_task(identity_manager.load_from_file()),
+        asyncio.create_task(load_computors())
+    })
 
     poll_bot.add_check(is_bot_in_guild)
     poll_bot.add_check(has_role_in_guild)
@@ -137,22 +138,19 @@ def main():
 
         # Running the bot
         tasks = {
-            loop.create_task(poll_bot.start(token, reconnect=True)),
-            loop.create_task(HandlerStarter.start(
+            asyncio.create_task(poll_bot.start(token, reconnect=True)),
+            asyncio.create_task(HandlerStarter.start(
                 HandlerWaitBroadcastComputors(nc=custom_nats.Nats())))
         }
-        loop.run_until_complete(asyncio.wait(tasks))
+        await asyncio.wait(tasks)
     except KeyboardInterrupt:
         print("Waiting for the tasks in the pool to be completed")
-        loop.run_until_complete(pool_commands.stop())
-        loop.run_until_complete(identity_manager.stop())
-        loop.run_until_complete(poll_bot.close())
-        loop.run_until_complete(__nc.drain())
-    finally:
-        if not loop.is_closed():
-            loop.close()
+        await pool_commands.stop()
+        await identity_manager.stop()
+        await poll_bot.close()
+        await __nc.drain()
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    main()
+    asyncio.run(main())
