@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from nats.aio.client import Client
 from qubic.qubicdata import BroadcastComputors, Computors, Subjects
 from qubic.qubicutils import (cache_computors, get_comutors_system_data,
-                              get_identities_from_computors)
+                              get_identities_from_computors, load_computors)
 
 from checkers import has_role_in_guild, is_bot_in_guild
 from commands.pool import pool_commands
@@ -124,7 +124,9 @@ def main():
     # Loading user data and identities
     loop.run_until_complete(asyncio.wait({
         loop.create_task(user_data.load_from_file()),
-        loop.create_task(identity_manager.load_from_file())}))
+        loop.create_task(identity_manager.load_from_file()),
+        loop.create_task(load_computors())
+    }))
 
     poll_bot.add_check(is_bot_in_guild)
     poll_bot.add_check(has_role_in_guild)

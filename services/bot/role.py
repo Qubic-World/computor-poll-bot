@@ -3,7 +3,7 @@ import logging
 import traceback
 
 import discord.utils
-from discord import Client, Member, Role
+from discord import Client, Member, Role, HTTPException
 
 from data.identity import identity_manager
 from data.users import UserData, user_data
@@ -29,9 +29,11 @@ class RoleManager():
             role: Role = get_role(self._bot)
             if set_role:
                 if discord.utils.get(member.roles, id=role.id) == None:
+                    logging.info('Add roles')
                     await member.add_roles(role)
             else:
                 if discord.utils.get(member.roles, id=role.id) != None:
+                    logging.info('Remove roles')
                     await member.remove_roles(role)
         finally:
             pass

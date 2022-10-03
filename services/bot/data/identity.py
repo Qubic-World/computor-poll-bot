@@ -19,6 +19,9 @@ class IdentityManager():
         old_identity = set(self._identity).difference(identity)
         new_identity = set(identity).difference(self._identity)
 
+        logging.info(f'Old identities: {len(old_identity)}')
+        logging.info(f'New identities: {len(new_identity)}')
+
         self._identity = identity
 
         if len(new_identity) > 0:

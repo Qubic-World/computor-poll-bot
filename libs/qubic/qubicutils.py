@@ -1,3 +1,5 @@
+from asyncio.log import logger
+import logging
 import os
 import sys
 from ctypes import sizeof
@@ -147,6 +149,16 @@ async def cache_computors(computors: Computors):
 
     global computors_system_data
     computors_system_data = computors
+
+
+async def load_computors():
+    try:
+        async with aiofiles.open(COMPUTORS_CACHE_PATH, 'rb') as f:
+            data = await f.read()
+            global computors_system_data
+            computors_system_data = Computors.from_buffer_copy(data)
+    except Exception as e:
+        logging.exception(e)
 
 
 def get_comutors_system_data():
