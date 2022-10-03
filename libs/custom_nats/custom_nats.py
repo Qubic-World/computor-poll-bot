@@ -26,6 +26,7 @@ class Nats():
             cls.__nc: Optional[Client] = None
             cls.__host = nats_host
             cls.__port = nats_port
+            cls.__token = str(os.getenv('NATS_TOKEN', ''))
 
         return cls.__instance
 
@@ -66,7 +67,7 @@ class Nats():
             return self.__nc
 
         try:
-            self.__nc = await nats.connect(f'{self.__host}:{self.__port}')
+            self.__nc = await nats.connect(servers=[f'nats://{self.__host}:{self.__port}'], token=self.__token)
         except (OSError, errors.Error, TimeoutError, errors.NoServersError) as e:
             logging.error(e)
             return None
@@ -110,5 +111,3 @@ class Nats():
         except nats.errors.Error as e:
             logging.exception(e)
             return None
-
-        

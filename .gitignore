@@ -141,3 +141,4 @@ dmypy.json
 
 # Backup files
 backup_data/*
+nats-server.conf
