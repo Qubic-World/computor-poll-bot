@@ -1,4 +1,3 @@
-from asyncio.log import logger
 import logging
 import os
 import sys
@@ -9,7 +8,7 @@ import aiofiles
 from algorithms.verify import get_identity, kangaroo_twelve, verify
 
 from qubic.qubicdata import (ADMIN_PUBLIC_KEY, BROADCAST_REVENUES,
-                             EMPTY_PUBLIC_KEY, ISSUANCE_RATE,
+                             EMPTY_PUBLIC_KEY, MAX_REVENUE_VALUE,
                              NUMBER_OF_COMPUTORS, SIGNATURE_SIZE, Computors,
                              ExchangePublicPeers, RequestResponseHeader,
                              Revenues, broadcasted_computors, c_ip_type,
@@ -117,7 +116,7 @@ def can_apply_revenues(revenues: Revenues) -> bool:
         return False
 
     for i in range(0, NUMBER_OF_COMPUTORS):
-        if revenues.revenues[i] > (ISSUANCE_RATE / NUMBER_OF_COMPUTORS):
+        if revenues.revenues[i] > MAX_REVENUE_VALUE:
             return False
 
     return True
@@ -171,14 +170,6 @@ def get_identities_from_computors(computors: Computors):
 
     for public_key in computors.public_keys:
         identities.append(get_identity(bytes(public_key)))
-
-    return identities
-
-    raw_public_key_list = list(bytes(computors.public_keys))
-    for idx in range(0, len(raw_public_key_list), 32):
-        public_key = bytes(computors.public_keys[idx: idx + 32])
-        if public_key != EMPTY_PUBLIC_KEY:
-            identities.append(get_identity(public_key))
 
     return identities
 
