@@ -3,6 +3,7 @@ import ctypes
 import logging
 from ctypes import sizeof
 from os import getenv
+from random import shuffle
 from typing import Any, Optional
 
 from qubic.qubicdata import (BROADCAST_COMPUTORS,
@@ -127,6 +128,12 @@ class QubicNetworkManager():
 
             ips = [ip for ip in [peer.ip for peer in self._peers]]
             logging.info(f'Connected to {", ".join(ips)}')
+
+            # Reconnect to all is queue is empty
+            if waiters <= 0 and connected <= 2:
+                logging.info('Reconnect to all')
+                for ip in shuffle(list(self.know_ip)):
+                    self.connect_to_peer(ip)
 
             await asyncio.sleep(1)
 
@@ -371,8 +378,6 @@ class Peer():
                 # Do not send this request to other piers
                 continue
             elif header_type == BROADCAST_REVENUES:
-                logging.info('BROADCAST_REVENUES')
-
                 try:
                     revenues = Revenues.from_buffer_copy(raw_payload)
                 except Exception as e:

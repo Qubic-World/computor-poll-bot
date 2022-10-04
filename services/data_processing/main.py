@@ -1,8 +1,10 @@
 import asyncio
 import logging
+import zlib
 from ctypes import sizeof
 from typing import Optional
 
+import numpy
 from algorithms.verify import get_score
 from custom_nats.custom_nats import Nats
 from custom_nats.handler import Handler, HandlerStarter
@@ -12,9 +14,12 @@ from qubic.qubicdata import (NUMBER_OF_COMPUTORS, NUMBER_OF_SOLUTION_NONCES,
                              BroadcastResourceTestingSolution, Computors,
                              DataSubjects, ResourceTestingSolution, Revenues,
                              Subjects, Tick)
-from qubic.qubicutils import get_identity, get_identities_from_computors
+from qubic.qubicutils import get_identities_from_computors, get_identity
 from utils.backgroundtasks import BackgroundTasks
-import zlib
+
+
+def _get_empty_revenues():
+    return numpy.full((NUMBER_OF_COMPUTORS, NUMBER_OF_COMPUTORS), None, dtype=object).tolist()
 
 
 class DataContainer():
@@ -22,9 +27,9 @@ class DataContainer():
     __ticks = dict()
     __scores = dict()
     __btasks = BackgroundTasks()
-    __revenues = [[None for _ in range(
-        NUMBER_OF_COMPUTORS)]] * NUMBER_OF_COMPUTORS
     __computors: Optional[Computors] = None
+
+    __revenues = _get_empty_revenues()
 
     @classmethod
     def add_tick(cls, computor_index: int, new_tick: int):
@@ -51,8 +56,7 @@ class DataContainer():
 
     @classmethod
     def clear_after_change_epoch(cls):
-        cls.__revenues = [[None for _ in range(
-            NUMBER_OF_COMPUTORS)]] * NUMBER_OF_COMPUTORS
+        cls.__revenues = _get_empty_revenues()
         cls.__scores.clear()
         cls.__ticks.clear()
 
