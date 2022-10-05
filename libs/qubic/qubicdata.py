@@ -11,6 +11,7 @@ sys.path.append(os.path.dirname(SCRIPT_DIR))
 
 NUMBER_OF_EXCHANGED_PEERS = 4
 NUMBER_OF_COMPUTORS = 676
+NUMBER_OF_SOLUTION_NONCES = 1000
 QUORUM = int((NUMBER_OF_COMPUTORS * 2 / 3) + 1)
 SIGNATURE_SIZE = 64
 KEY_SIZE = 32
@@ -18,6 +19,7 @@ KEY_SIZE = 32
 
 c_ip_type = (ctypes.c_uint8 * 4)
 c_nonce_type = (ctypes.c_uint8 * 32)
+c_nonce_type_array = c_nonce_type * NUMBER_OF_SOLUTION_NONCES
 c_signature_type = (ctypes.c_uint8 * SIGNATURE_SIZE)
 c_public_key_type = (ctypes.c_uint8 * KEY_SIZE)
 c_public_keys_type = c_public_key_type * NUMBER_OF_COMPUTORS
@@ -26,7 +28,6 @@ c_revenues_type = ctypes.c_uint32 * NUMBER_OF_COMPUTORS
 ADMIN_ID = "EEDMBLDKFLBNKDPFHDHOOOFLHBDCHNCJMODFMLCLGAPMLDCOAMDDCEKMBBBKHEGGLIAFFK"
 ADMIN_PUBLIC_KEY = get_public_key_from_id(ADMIN_ID)
 EMPTY_PUBLIC_KEY = bytes(KEY_SIZE)
-NUMBER_OF_SOLUTION_NONCES = 1000
 ISSUANCE_RATE = 1000000000000
 
 MAX_REVENUE_VALUE = int(ISSUANCE_RATE / NUMBER_OF_COMPUTORS)
@@ -78,7 +79,7 @@ class ExchangePublicPeers(ctypes.Structure):
 
 class ResourceTestingSolution(ctypes.Structure):
     _fields_ = [('computorPublicKey', c_public_key_type),
-                ('nonces', c_nonce_type * NUMBER_OF_SOLUTION_NONCES)]
+                ('nonces', c_nonce_type_array)]
 
 
 class BroadcastResourceTestingSolution(ctypes.Structure):

@@ -8,10 +8,10 @@ import aiofiles
 from algorithms.verify import get_identity, kangaroo_twelve, verify
 
 from qubic.qubicdata import (ADMIN_PUBLIC_KEY, BROADCAST_REVENUES,
-                             EMPTY_PUBLIC_KEY, MAX_REVENUE_VALUE,
+                             BROADCAST_TICK, MAX_REVENUE_VALUE,
                              NUMBER_OF_COMPUTORS, SIGNATURE_SIZE, Computors,
                              ExchangePublicPeers, RequestResponseHeader,
-                             Revenues, broadcasted_computors, c_ip_type,
+                             Revenues, Tick, broadcasted_computors, c_ip_type,
                              computors_system_data)
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -122,13 +122,28 @@ def can_apply_revenues(revenues: Revenues) -> bool:
     return True
 
 
+def is_valid_data(data: bytes, computor_index: int, signature: bytes):
+    data_without_signature = data[:-SIGNATURE_SIZE]
+    digest = kangaroo_twelve(data_without_signature)
+    return verify(bytes(broadcasted_computors.broadcastComputors.computors.public_keys[computor_index]), digest, signature)
+
+
+def is_valid_tick_data(tick: Tick):
+    if tick.epoch != broadcasted_computors.epoch:
+        return False
+
+    tick.computorIndex ^= BROADCAST_TICK
+    result = is_valid_data(bytes(tick), tick.computorIndex, tick.signature)
+    tick.computorIndex ^= BROADCAST_TICK
+    return result
+
+
 def is_valid_revenues_data(revenues: Revenues) -> bool:
     revenues.computorIndex ^= BROADCAST_REVENUES
-    data_without_signature = bytes(
-        revenues)[:sizeof(Revenues) - SIGNATURE_SIZE]
-    digest = kangaroo_twelve(data_without_signature)
+    result = is_valid_data(
+        bytes(revenues), revenues.computorIndex, revenues.signature)
     revenues.computorIndex ^= BROADCAST_REVENUES
-    return verify(bytes(broadcasted_computors.broadcastComputors.computors.public_keys[revenues.computorIndex]), digest, bytes(revenues.signature))
+    return result
 
 
 def is_valid_computors_data(payload: Computors) -> bool:

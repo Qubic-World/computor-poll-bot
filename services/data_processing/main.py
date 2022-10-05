@@ -9,8 +9,7 @@ from algorithms.verify import get_score
 from custom_nats.custom_nats import Nats
 from custom_nats.handler import Handler, HandlerStarter
 from nats.aio.msg import Msg
-from qubic.qubicdata import (NUMBER_OF_COMPUTORS, NUMBER_OF_SOLUTION_NONCES,
-                             BroadcastComputors,
+from qubic.qubicdata import (NUMBER_OF_COMPUTORS, BroadcastComputors,
                              BroadcastResourceTestingSolution, Computors,
                              DataSubjects, ResourceTestingSolution, Revenues,
                              Subjects, Tick)
@@ -160,13 +159,17 @@ class HandleBroadcastResourceTestingSolution(Handler):
                 'BroadcastResourceTestingSolution structure size does not match payload size')
             return None
 
-        broadcastResourceTestingSolution = BroadcastResourceTestingSolution.from_buffer_copy(
-            data)
+        logging.info('Got scores')
+        try:
+            broadcastResourceTestingSolution = BroadcastResourceTestingSolution.from_buffer_copy(
+                data)
+        except Exception as e:
+            logging.exception(e)
+            return
         resourceTestingSolution: ResourceTestingSolution = broadcastResourceTestingSolution.resourceTestingSolution
         identity = get_identity(
             bytes(resourceTestingSolution.computorPublicKey))
-        new_score = get_score(
-            bytes(resourceTestingSolution.nonces), NUMBER_OF_SOLUTION_NONCES)
+        new_score = get_score(resourceTestingSolution.nonces)
 
         DataContainer.add_scores(identity=identity, new_score=new_score)
 

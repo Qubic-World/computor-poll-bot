@@ -6,6 +6,7 @@ from os import getenv
 from random import shuffle
 from typing import Any, Optional
 
+from libs.qubic.qubicutils import is_valid_tick_data
 from qubic.qubicdata import (BROADCAST_COMPUTORS,
                              BROADCAST_RESOURCE_TESTING_SOLUTION,
                              BROADCAST_REVENUES, BROADCAST_TICK,
@@ -366,9 +367,9 @@ class Peer():
             elif header_type == BROADCAST_TICK:
                 tick = Tick.from_buffer_copy(raw_payload)
                 if tick.hour <= 23 and tick.minute <= 59 and tick.second <= 59 and tick.millisecond <= 999:
-                    # TODO: add verify check
-                    self.__callbacks.execute(
-                        header_type=header_type, data=tick)
+                    if is_valid_tick_data(tick):
+                        self.__callbacks.execute(
+                            header_type=header_type, data=tick)
             elif header_type == REQUEST_COMPUTORS:
                 logging.info('REQUEST_COMPUTORS')
                 if broadcasted_computors.epoch >= 0:
