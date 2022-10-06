@@ -1,13 +1,14 @@
-
 import logging
-from discord import Client, Member, Message
-from discord.utils import get
-from discord.ext import commands
 from os import getenv
+from typing import Union
+
+from discord import Client, Member, Message
+from discord.ext import commands
+from discord.utils import get
 
 
 def get_channel_id() -> int:
-    return int(getenv("CHANNEL_ID"))
+    return int(getenv("CHANNEL_ID", -1))
 
 
 def get_member_by_id(poll_bot: Client, user_id: int):
@@ -20,11 +21,7 @@ def get_member_by_id(poll_bot: Client, user_id: int):
 
 
 def get_guild_id():
-    try:
-        return int(getenv("GUILD_ID"))
-    except Exception as e:
-        logging.error(e)
-        return -1
+    return int(getenv("GUILD_ID", -1))
 
 
 def get_guild(poll_bot: Client):
@@ -36,12 +33,7 @@ def get_guild_by_member(member: Member):
 
 
 def get_poll_channel_id() -> int:
-    try:
-        id = int(getenv("POLL_CHANNEL_ID"))
-    except:
-        id = -1
-
-    return id
+    return int(getenv("POLL_CHANNEL_ID", None))
 
 
 def get_role_name() -> str:
@@ -66,6 +58,37 @@ def get_username_with_discr(member: Member) -> str:
     return str(member.name + '#' + member.discriminator)
 
 
+async def get_messages_from_poll_channel(bot: Client) -> Union[list[Message], None]:
+    channel = get_poll_channel(bot)
+    if channel is None:
+        return
+
+    async for message in channel.history():
+        yield message
+
+
 async def get_poll_message_by_id(bot: Client, message_id: int) -> Message:
-    channel = bot.get_channel(get_poll_channel_id())
+    channel = get_poll_channel(bot)
     return await channel.fetch_message(message_id)
+
+
+def get_poll_channel(bot: Client):
+    return bot.get_channel(get_poll_channel_id())
+
+
+def get_components_by_type(message, component_type):
+    import itertools
+
+    from discord import ActionRow, Message
+
+    if not isinstance(message, Message):
+        logging.exception(TypeError('message is not discord.Message'))
+        return []
+
+    return list(itertools.chain.from_iterable([[component for component in row.children if isinstance(component, component_type)]
+                                               for row in message.components if isinstance(row, ActionRow)]))
+
+
+def get_buttons_from_message(message):
+    from discord import Button
+    return get_components_by_type(message=message, component_type=Button)

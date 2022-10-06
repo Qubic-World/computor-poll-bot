@@ -1,15 +1,11 @@
-
 import logging
+
 from discord import Member, User
 from discord.ext.commands import Context
 from discord.utils import get
 
-from utils.botutils import (get_channel_id, get_guild, get_guild_id,
+from utils.botutils import (get_guild, get_guild_id, get_member_by_id,
                             get_poll_channel_id, get_role, get_role_name)
-
-
-async def is_bot_channel(ctx):
-    return ctx.message.channel.id == get_channel_id()
 
 
 async def is_bot_in_guild(ctx: Context):
@@ -36,7 +32,8 @@ async def is_user_in_guild(ctx: Context):
     if result == False:
         logging.info("You are not a member")
         logging.info(f'Guild id: {guild_id}')
-        logging.info(f'Guild ids: {", ".join([guild.id for guild in guilds])} ')
+        logging.info(
+            f'Guild ids: {", ".join([guild.id for guild in guilds])} ')
         guild = get_guild(ctx.bot)
         await ctx.send(f"You are not a member of {guild.name}")
 
@@ -61,13 +58,28 @@ async def has_role_in_guild(ctx):
         return result
 
 
-async def has_role_on_member(ctx):
+async def has_role_on_member(ctx: Context):
     role_name = get_role_name()
     if len(role_name) <= 0:
         await ctx.reply("Could not find the role on the server")
         return
 
-    result = role_name in [role.name for role in ctx.author.roles]
+    author = ctx.author
+    if isinstance(author, User):
+        user: User = author
+        member: Member = get_member_by_id(ctx.bot, user.id)
+    elif isinstance(author, Member):
+        member: Member = author
+    else:
+        logging.error(
+            f'{has_role_on_member.__name__}: author is not Member or User')
+        return False
+
+    if member is None:
+        logging.error(f'{has_role_on_member.__name__}: member is None')
+        return False
+
+    result = role_name in [role.name for role in member.roles]
     if result == False:
         await ctx.reply(f"You do not have a {role_name} role to execute this command")
 

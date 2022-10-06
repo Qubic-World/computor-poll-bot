@@ -1,5 +1,5 @@
+import logging
 import os
-import re
 import sys
 from ctypes import sizeof
 from os import getenv
@@ -7,16 +7,19 @@ from os import getenv
 import aiofiles
 from algorithms.verify import get_identity, kangaroo_twelve, verify
 
-from qubic.qubicdata import (ADMIN_PUBLIC_KEY, EMPTY_PUBLIC_KEY,
-                             SIGNATURE_SIZE, Computors, ExchangePublicPeers,
-                             RequestResponseHeader, c_ip_type,
+from qubic.qubicdata import (ADMIN_PUBLIC_KEY, BROADCAST_REVENUES,
+                             BROADCAST_TICK, MAX_REVENUE_VALUE,
+                             NUMBER_OF_COMPUTORS, SIGNATURE_SIZE, Computors,
+                             ExchangePublicPeers, RequestResponseHeader,
+                             Revenues, Tick, broadcasted_computors, c_ip_type,
                              computors_system_data)
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
 
-COMPUTORS_CACHE_PATH = os.path.join(os.getenv('DATA_FILES_PATH', './'), 'system.data')
+COMPUTORS_CACHE_PATH = os.path.join(
+    os.getenv('DATA_FILES_PATH', './'), 'system.data')
 
 """ IP
 """
@@ -67,6 +70,7 @@ def exchange_public_peers_to_list(exchange_public_peers: ExchangePublicPeers) ->
 
     return ip_list
 
+
 def get_protocol_version() -> int:
     try:
         value = getenv("QUBIC_NETWORK_PROTOCOL_VERSION")
@@ -82,7 +86,10 @@ def get_protocol_version() -> int:
 
 
 def is_valid_header(header: RequestResponseHeader) -> bool:
-    return header.protocol == get_protocol_version() and header.size > 0
+    protocol = get_protocol_version()
+    min_protocol = protocol - 1
+    max_protocol = protocol + 1
+    return header.size > 0 and min_protocol <= header.protocol <= max_protocol
 
 
 def get_header_from_bytes(raw_data: bytes) -> RequestResponseHeader:
@@ -104,20 +111,54 @@ def get_raw_payload(raw_data: bytes):
     return raw_data[sizeof(header):]
 
 
-def is_valid_broadcast_computors(payload: Computors) -> bool:
-    if payload.protocol != get_protocol_version():
+def can_apply_revenues(revenues: Revenues) -> bool:
+    if revenues.computorIndex >= NUMBER_OF_COMPUTORS:
         return False
 
+    for i in range(0, NUMBER_OF_COMPUTORS):
+        if revenues.revenues[i] > MAX_REVENUE_VALUE:
+            return False
+
+    return True
+
+
+def is_valid_data(data_without_signature: bytes, computor_index: int, signature: bytes):
+    digest = kangaroo_twelve(data_without_signature)
+    return verify(bytes(broadcasted_computors.broadcastComputors.computors.public_keys[computor_index]), digest, signature)
+
+
+def is_valid_tick_data(tick: Tick):
+    if tick.epoch != broadcasted_computors.epoch:
+        logging.warning('tick epoch is not valid')
+        return False
+
+    tick.computorIndex ^= BROADCAST_TICK
+    tick_without_signature = bytes(tick)[:sizeof(Tick) - SIGNATURE_SIZE]
+    tick.computorIndex ^= BROADCAST_TICK
+    result = is_valid_data(tick_without_signature,
+                           tick.computorIndex, bytes(tick.signature))
+    return result
+
+
+def is_valid_revenues_data(revenues: Revenues) -> bool:
+    revenues.computorIndex ^= BROADCAST_REVENUES
+    data_without_signature = bytes(
+        revenues)[:sizeof(Revenues) - SIGNATURE_SIZE]
+    revenues.computorIndex ^= BROADCAST_REVENUES
+    result = is_valid_data(data_without_signature,
+                           revenues.computorIndex, bytes(revenues.signature))
+    return result
+
+
+def is_valid_computors_data(payload: Computors) -> bool:
     # Checking signature
-    print(f"Sizeof Computors: {sizeof(payload)}")
     data_withou_signature = bytes(payload)[:sizeof(Computors) - SIGNATURE_SIZE]
-    print(f"Len butes: {len(data_withou_signature)}")
     digest = kangaroo_twelve(data_withou_signature)
     return verify(ADMIN_PUBLIC_KEY, digest, bytes(payload.signature))
 
 
 def can_apply_computors_data(computors: Computors):
-    return computors.epoch > computors_system_data.epoch or (computors.epoch == computors_system_data.epoch and computors.index > computors_system_data.index)
+    return computors.epoch > broadcasted_computors.epoch
 
 
 async def cache_computors(computors: Computors):
@@ -128,42 +169,31 @@ async def cache_computors(computors: Computors):
     computors_system_data = computors
 
 
-async def load_cache_computors():
-    if not os.path.isfile(COMPUTORS_CACHE_PATH):
-        return
+async def load_computors():
+    try:
+        async with aiofiles.open(COMPUTORS_CACHE_PATH, 'rb') as f:
+            data = await f.read()
+            global computors_system_data
+            computors_system_data = Computors.from_buffer_copy(data)
+    except Exception as e:
+        logging.exception(e)
 
-    async with aiofiles.open(COMPUTORS_CACHE_PATH, "rb") as f:
-        b = await f.read()
-        if len(b) != sizeof(Computors):
-            return
-        global computors_system_data
-        computors_system_data = Computors.from_buffer_copy(b)
+
+def get_comutors_system_data():
+    global computors_system_data
+    return computors_system_data
 
 
 def get_identities_from_computors(computors: Computors):
     identities = []
-    raw_public_key_list = list(bytes(computors.public_keys))
-    for idx in range(0, len(raw_public_key_list), 32):
-        public_key = bytes(computors.public_keys[idx: idx + 32])
-        if public_key != EMPTY_PUBLIC_KEY:
-            identities.append(get_identity(public_key))
+
+    for public_key in computors.public_keys:
+        identities.append(get_identity(bytes(public_key)))
 
     return identities
 
 
-async def apply_computors_data(computors: Computors):
-    if can_apply_computors_data(computors):
-        await cache_computors(computors)
-        # identity = []
-        # raw_public_key_list = list(bytes(computors.public_keys))
-        # for idx in range(0, len(raw_public_key_list), 32):
-        #     public_key = bytes(computors.public_keys[idx: idx + 32])
-        #     if public_key != EMPTY_PUBLIC_KEY:
-        #         identity.append(get_identity(public_key))
+def apply_computors(computors: Computors):
+    global broadcasted_computors
 
-        # identity_manager.apply_identity(identity)
-
-        # # TODO: The identity save to file can be removed, as the public keys are stored in COMPUTORS_CACHE_PATH
-        # # await cache_computors(computors)
-        # # await identity_manager.save_to_file()
-        # await asyncio.gather(cache_computors(computors), identity_manager.save_to_file())
+    broadcasted_computors.broadcastComputors.computors = computors

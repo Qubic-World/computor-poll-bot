@@ -5,8 +5,7 @@ async-timeout==3.0.1
 attrs==22.1.0
 chardet==4.0.0
 charset-normalizer==2.1.1
-discord-components @ git+https://github.com/kiki7000/discord.py-components.git@master
-discord.py==1.7.3
+discord.py==2.0.1
 frozenlist==1.3.1
 idna==3.3
 multidict==6.0.2

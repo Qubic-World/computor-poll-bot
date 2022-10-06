@@ -1,36 +1,42 @@
 import asyncio
 import logging
 from typing import Any
-from custom_nats.custom_nats import Nats
 
-from qubic.qubicdata import Computors, Subjects, ExchangePublicPeers
+from custom_nats.custom_nats import Nats
+from qubic.qubicdata import (BROADCAST_COMPUTORS,
+                             BROADCAST_RESOURCE_TESTING_SOLUTION,
+                             BROADCAST_REVENUES, BROADCAST_TICK,
+                             EXCHANGE_PUBLIC_PEERS, BroadcastComputors,
+                             BroadcastResourceTestingSolution,
+                             ExchangePublicPeers, Revenues, Subjects, Tick)
+
 from manager import QubicNetworkManager
-from qubic.qubicdata import BROADCAST_COMPUTORS, EXCHANGE_PUBLIC_PEERS
 
 
 async def publish_data(header_type: int, data: Any):
-    nc = await Nats().connect()
-    if nc is None:
+    nc = Nats()
+    if await nc.connect() is None:
         logging.error('Failed to connect to Nats')
         return
 
-    logging.debug('publish_data')
-
-    if header_type == BROADCAST_COMPUTORS and isinstance(data, Computors):
-        logging.debug('broadcast')
+    if header_type == BROADCAST_COMPUTORS and isinstance(data, BroadcastComputors):
+        # logging.debug('BROADCAST_COMPUTORS')
         payload = bytes(data)
-        
+
         await nc.publish(Subjects.BROADCAST_COMPUTORS, payload=payload)
     elif header_type == EXCHANGE_PUBLIC_PEERS and isinstance(data, ExchangePublicPeers):
-        logging.debug('public_peers')
+        # logging.debug('EXCHANGE_PUBLIC_PEERS')
         payload = bytes(data)
 
-        try:
-            await nc.publish(Subjects.EXCHANGE_PUBLIC_PEERS, payload=payload)
-        except asyncio.CancelledError as e:
-            raise e
-        except Exception as e:
-            logging.warning(e)
+        await nc.publish(Subjects.EXCHANGE_PUBLIC_PEERS, payload=payload)
+    elif header_type == BROADCAST_RESOURCE_TESTING_SOLUTION and isinstance(data, BroadcastResourceTestingSolution):
+        # logging.debug('BROADCAST_RESOURCE_TESTING_SOLUTION')
+        await nc.publish(Subjects.BROADCAST_RESOURCE_TESTING_SOLUTION, bytes(data))
+    elif header_type == BROADCAST_TICK and isinstance(data, Tick):
+        # logging.debug('BROADCAST_TICK')
+        await nc.publish(Subjects.BROADCAST_TICK, payload=bytes(data))
+    elif header_type == BROADCAST_REVENUES and isinstance(data, Revenues):
+        await nc.publish(Subjects.BROADCAST_REVENUES, payload=bytes(data))
 
 
 async def main():
@@ -41,7 +47,7 @@ async def main():
         return
 
     qubic = QubicNetworkManager(["93.125.105.208", "178.172.194.154", "91.43.75.241", "178.172.194.148", "178.172.194.130",
-			"178.172.194.150", "178.172.194.147"])
+                                 "178.172.194.150", "178.172.194.147"])
 
     qubic.add_callback(publish_data)
 
@@ -50,7 +56,6 @@ async def main():
     finally:
         await qubic.stop()
 
-    
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)

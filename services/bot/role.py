@@ -3,7 +3,7 @@ import logging
 import traceback
 
 import discord.utils
-from discord import Client, Member, Role
+from discord import Client, Member, Role, HTTPException
 
 from data.identity import identity_manager
 from data.users import UserData, user_data
@@ -29,9 +29,11 @@ class RoleManager():
             role: Role = get_role(self._bot)
             if set_role:
                 if discord.utils.get(member.roles, id=role.id) == None:
+                    logging.info('Add roles')
                     await member.add_roles(role)
             else:
                 if discord.utils.get(member.roles, id=role.id) != None:
+                    logging.info('Remove roles')
                     await member.remove_roles(role)
         finally:
             pass
@@ -92,6 +94,6 @@ class RoleManager():
                 "RoleManager.reset_roles: failed to get a member")
             return
 
-        has_computors = len(identity_manager.get_only_computor_identities(user_data.get_user_identities(user_id))) > 0
+        has_computors = len(identity_manager.get_only_computor_identities(
+            user_data.get_user_identities(user_id))) > 0
         await self.__set_role_to_member(member, has_computors)
-

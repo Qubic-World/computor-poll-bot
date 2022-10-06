@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import Optional
 
@@ -11,6 +12,21 @@ class Handler():
     def __init__(self, nc: Nats) -> None:
         self._nc = nc
         self._sub: Optional[Subscription] = None
+        self._background_tasks = set()
+
+    def add_task(self, task: asyncio.Task):
+        try:
+            if not task.done():
+                self._background_tasks.add(task)
+                task.add_done_callback(self.remove_task)
+        except Exception as e:
+            logging.exception(e)
+
+    def remove_task(self, task):
+        try:
+            self._background_tasks.remove(task)
+        except Exception as e:
+            logging.exception(e)
 
     @classmethod
     def __log(cls, level: int, msg: str):
@@ -28,12 +44,19 @@ class Handler():
     def _info(cls, msg: str):
         cls.__log(logging.INFO, msg)
 
+    @classmethod
+    def _debug(cls, msg: str):
+        cls.__log(logging.DEBUG, msg)
+
     async def loop(self):
         sub = await self.get_sub()
-        self._sub = sub
         if sub is None:
             return
 
+        if not isinstance(sub, Subscription):
+            logging.exception(TypeError(f'Subscription must be of the {Subscription.__name__} type'))
+
+        self._sub = sub
         try:
             while not sub._closed and not self._nc.is_disconected:
                 msg = await self._wait_msg(sub)
@@ -45,8 +68,17 @@ class Handler():
             logging.exception(e)
 
     async def cancel(self):
+        task: asyncio.Task = None
+        for task in self._background_tasks:
+            task.cancel()
+
+        task = asyncio.create_task(asyncio.sleep(0))
+
         if self._sub is not None and not self._sub._closed:
             await self._sub.unsubscribe()
+
+        if not task.done():
+            await asyncio.wait({task})
 
     async def get_sub(self) -> Subscription | None:
         return None
@@ -58,9 +90,9 @@ class Handler():
             return None
 
         try:
-            self._info('waiting a message')
+            self._debug('waiting a message')
             msg = await sub.next_msg()
-            self._info('message received')
+            self._debug('message received')
         except TimeoutError as e:
             return None
 
@@ -69,9 +101,11 @@ class Handler():
     async def _handler_msg(self, msg: Msg):
         pass
 
+
 class HandlerWrapper():
     def __init__(self, handler: Handler) -> None:
-        assert isinstance(handler, Handler), f"{HandlerWrapper.__name__} should only work with the {Handler.__name__} class" 
+        assert isinstance(
+            handler, Handler), f"{HandlerWrapper.__name__} should only work with the {Handler.__name__} class"
         self.__handler = handler
 
     async def __aenter__(self):
@@ -82,9 +116,11 @@ class HandlerWrapper():
         logging.debug(f'{HandlerWrapper.__name__}: __aexit__')
         await self.__handler.cancel()
 
+
 class HandlerStarter():
     @staticmethod
     async def start(handler: Handler):
-        assert isinstance(handler, Handler), f"{HandlerStarter.__name__} should only work with the {Handler.__name__} class" 
+        assert isinstance(
+            handler, Handler), f"{HandlerStarter.__name__} should only work with the {Handler.__name__} class"
         async with HandlerWrapper(handler) as h:
             await h.loop()
