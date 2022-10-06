@@ -5,3 +5,4 @@ pycodestyle==2.9.1
 python-dotenv==0.21.0
 toml==0.10.2
 numpy
+zstandard

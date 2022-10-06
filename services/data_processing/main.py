@@ -1,6 +1,6 @@
 import asyncio
 import logging
-import zlib
+import zstandard
 from ctypes import sizeof
 from typing import Optional
 
@@ -105,7 +105,7 @@ class DataContainer():
                 revenues = cls.get_revenues()
                 if len(revenues) > 0:
                     logging.info(f'Send revenues')
-                    compressed_revenues = zlib.compress(
+                    compressed_revenues = zstandard.compress(
                         json.dumps(revenues).encode())
                     tasks.add(cls.__btasks.create_task(nc.publish,
                                                        DataSubjects.REVENUES, compressed_revenues))
