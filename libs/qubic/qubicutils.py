@@ -122,27 +122,31 @@ def can_apply_revenues(revenues: Revenues) -> bool:
     return True
 
 
-def is_valid_data(data: bytes, computor_index: int, signature: bytes):
-    data_without_signature = data[:-SIGNATURE_SIZE]
+def is_valid_data(data_without_signature: bytes, computor_index: int, signature: bytes):
     digest = kangaroo_twelve(data_without_signature)
     return verify(bytes(broadcasted_computors.broadcastComputors.computors.public_keys[computor_index]), digest, signature)
 
 
 def is_valid_tick_data(tick: Tick):
     if tick.epoch != broadcasted_computors.epoch:
+        logging.warning('tick epoch is not valid')
         return False
 
     tick.computorIndex ^= BROADCAST_TICK
-    result = is_valid_data(bytes(tick), tick.computorIndex, tick.signature)
+    tick_without_signature = bytes(tick)[:sizeof(Tick) - SIGNATURE_SIZE]
     tick.computorIndex ^= BROADCAST_TICK
+    result = is_valid_data(tick_without_signature,
+                           tick.computorIndex, bytes(tick.signature))
     return result
 
 
 def is_valid_revenues_data(revenues: Revenues) -> bool:
     revenues.computorIndex ^= BROADCAST_REVENUES
-    result = is_valid_data(
-        bytes(revenues), revenues.computorIndex, revenues.signature)
+    data_without_signature = bytes(
+        revenues)[:sizeof(Revenues) - SIGNATURE_SIZE]
     revenues.computorIndex ^= BROADCAST_REVENUES
+    result = is_valid_data(data_without_signature,
+                           revenues.computorIndex, bytes(revenues.signature))
     return result
 
 

@@ -6,12 +6,12 @@ from os import getenv
 from random import shuffle
 from typing import Any, Optional
 
-from libs.qubic.qubicutils import is_valid_tick_data
 from qubic.qubicdata import (BROADCAST_COMPUTORS,
                              BROADCAST_RESOURCE_TESTING_SOLUTION,
                              BROADCAST_REVENUES, BROADCAST_TICK,
-                             EXCHANGE_PUBLIC_PEERS, REQUEST_COMPUTORS,
-                             REQUEST_COMPUTORS_HEADER, BroadcastComputors,
+                             EXCHANGE_PUBLIC_PEERS, NUMBER_OF_COMPUTORS,
+                             REQUEST_COMPUTORS, REQUEST_COMPUTORS_HEADER,
+                             BroadcastComputors,
                              BroadcastResourceTestingSolution, Computors,
                              ConnectionState, ExchangePublicPeers,
                              RequestResponseHeader, Revenues, Tick,
@@ -22,7 +22,7 @@ from qubic.qubicutils import (apply_computors, can_apply_computors_data,
                               get_header_from_bytes, get_protocol_version,
                               get_raw_payload, is_valid_computors_data,
                               is_valid_header, is_valid_ip,
-                              is_valid_revenues_data)
+                              is_valid_revenues_data, is_valid_tick_data)
 from utils.backgroundtasks import BackgroundTasks
 from utils.callback import Callbacks
 
@@ -133,8 +133,11 @@ class QubicNetworkManager():
             # Reconnect to all is queue is empty
             if waiters <= 0 and connected <= 2:
                 logging.info('Reconnect to all')
-                for ip in shuffle(list(self.know_ip)):
-                    self.connect_to_peer(ip)
+                ip_list = list(self.know_ip)
+                shuffle(ip_list)
+                logging.info(ip_list)
+                for ip in ip_list:
+                    self._backgound_tasks.create_task(self.connect_to_peer, ip)
 
             await asyncio.sleep(1)
 
@@ -181,6 +184,10 @@ class QubicNetworkManager():
             self._peers.remove(peer)
             self._know_ip.remove(peer.ip)
             self._fogeted_ip.add(peer.ip)
+
+    def remove_peer(self, peer):
+        if peer in self._peers:
+            self._peers.remove(peer)
 
 
 class Peer():
@@ -288,7 +295,8 @@ class Peer():
         if what is not None:
             logging.warning(what)
 
-        self.__qubic_manager.foget_peer(self)
+        # self.__qubic_manager.foget_peer(self)
+        self.__qubic_manager.remove_peer(self)
         await self.stop()
 
     async def __read_data(self, size) -> bytes:
@@ -365,11 +373,18 @@ class Peer():
                 self.__callbacks.execute(
                     header_type=header_type, data=BroadcastResourceTestingSolution.from_buffer_copy(raw_payload))
             elif header_type == BROADCAST_TICK:
-                tick = Tick.from_buffer_copy(raw_payload)
-                if tick.hour <= 23 and tick.minute <= 59 and tick.second <= 59 and tick.millisecond <= 999:
+                try:
+                    tick = Tick.from_buffer_copy(raw_payload)
+                except Exception as e:
+                    logging.exception(e)
+                    continue
+                
+                if tick.hour <= 23 and tick.minute <= 59 and tick.second <= 59 and tick.millisecond <= 999 and tick.computorIndex < NUMBER_OF_COMPUTORS:
                     if is_valid_tick_data(tick):
                         self.__callbacks.execute(
                             header_type=header_type, data=tick)
+                    else:
+                        logging.info('tick is not valid')
             elif header_type == REQUEST_COMPUTORS:
                 logging.info('REQUEST_COMPUTORS')
                 if broadcasted_computors.epoch >= 0:
@@ -379,6 +394,7 @@ class Peer():
                 # Do not send this request to other piers
                 continue
             elif header_type == BROADCAST_REVENUES:
+                logging.info('BROADCAST_REVENUES')
                 try:
                     revenues = Revenues.from_buffer_copy(raw_payload)
                 except Exception as e:

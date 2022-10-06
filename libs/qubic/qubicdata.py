@@ -110,8 +110,16 @@ class Tick(ctypes.Structure):
                 ('month', ctypes.c_uint8),
                 ('year', ctypes.c_uint8),
 
-                ('saltedStateDigest', ctypes.c_uint8 * 32),
-                ('prevStateDigest', ctypes.c_uint8 * 32),
+                ('initSpectrumDigest', ctypes.c_uint8 * 32),
+                ('initComputerDigest', ctypes.c_uint8 * 32),
+                ('initUniverseDigest', ctypes.c_uint8 * 32),
+                ('prevSpectrumDigest', ctypes.c_uint8 * 32),
+                ('prevComputerDigest', ctypes.c_uint8 * 32),
+                ('prevUniverseDigest', ctypes.c_uint8 * 32),
+                ('saltedSpectrumDigest', ctypes.c_uint8 * 32),
+                ('saltedComputerDigest', ctypes.c_uint8 * 32),
+                ('saltedUniverseDigest', ctypes.c_uint8 * 32),
+
                 ('nextTickChosenTransfersEffectsAndQuestionsDigest', ctypes.c_uint8 * 32),
 
                 ('signature', c_signature_type)]
