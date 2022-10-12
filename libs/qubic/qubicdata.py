@@ -66,8 +66,9 @@ REQUEST_COMPUTORS = 11
 
 class RequestResponseHeader(ctypes.Structure):
     _fields_ = [("size", ctypes.c_uint32),
-                ("protocol", ctypes.c_ushort),
-                ("type", ctypes.c_ushort)]
+                ("protocol", ctypes.c_uint8),
+                ("type", ctypes.c_uint8),
+                ("nonce", ctypes.c_ushort)]
 
     def __repr__(self) -> str:
         return str(f"Size: {self.size}\nProtocol: {self.protocol}\nType: {self.type}")

@@ -270,9 +270,10 @@ class Peer():
             header = RequestResponseHeader()
             header.size = sizeof(RequestResponseHeader) + \
                 sizeof(ExchangePublicPeers)
-            header.protocol = ctypes.c_ushort(
+            header.protocol = ctypes.c_uint8(
                 get_protocol_version())
             header.type = EXCHANGE_PUBLIC_PEERS
+            header.nonce = 0
 
             know_ip = self.__qubic_manager.know_ip
             random_ip_list = random.sample(know_ip, min(
