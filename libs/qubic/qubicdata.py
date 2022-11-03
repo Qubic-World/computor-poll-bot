@@ -52,6 +52,7 @@ class DataSubjects:
     TICKS = 'qubic.data.ticks'
     SCORES = 'qubic.data.scores'
     REVENUES = 'qubic.data.revenues'
+    EPOCH = 'qubic.data.epoch'
 
 
 """Network packages

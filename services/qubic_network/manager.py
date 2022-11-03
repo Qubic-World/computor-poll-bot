@@ -379,7 +379,7 @@ class Peer():
                 except Exception as e:
                     logging.exception(e)
                     continue
-                
+
                 if tick.hour <= 23 and tick.minute <= 59 and tick.second <= 59 and tick.millisecond <= 999 and tick.computorIndex < NUMBER_OF_COMPUTORS:
                     if is_valid_tick_data(tick):
                         self.__callbacks.execute(
@@ -388,7 +388,7 @@ class Peer():
                         logging.info('tick is not valid')
             elif header_type == REQUEST_COMPUTORS:
                 logging.info('REQUEST_COMPUTORS')
-                if broadcasted_computors.epoch >= 0:
+                if broadcasted_computors.epoch > 0:
                     logging.info('Send broadcasted_computors')
                     self.__backgound_tasks.create_task(
                         self.send_data, bytes(broadcasted_computors))
