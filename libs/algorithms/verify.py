@@ -37,12 +37,15 @@ def verify(public_key: bytes, digest: bytes, signature: bytes) -> bool:
 
     return verify_C(ctypes.c_char_p(public_key), ctypes.c_char_p(digest), ctypes.c_char_p(signature))
 
+
 def verify_message(public_key: bytes, message: bytes, signature: bytes) -> bool:
     verify_message_C = qubic_verify_dll.verify_message
-    verify_message_C.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint64, ctypes.c_char_p]
+    verify_message_C.argtypes = [
+        ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint64, ctypes.c_char_p]
     verify_message_C.restype = ctypes.c_bool
 
     return verify_message_C(ctypes.c_char_p(public_key), ctypes.c_char_p(message), ctypes.c_uint64(len(message)), ctypes.c_char_p(signature))
+
 
 def kangaroo_twelve(data: bytes) -> bytes:
     kangaroo_twelve_C = qubic_verify_dll.kangaroo_twelve
@@ -119,10 +122,11 @@ def sign(subseed: bytes, public_key: bytes, digest: bytes) -> bytes:
         public_key), ctypes.c_char_p(digest), signature_buffer)
     return bytes(signature_buffer)
 
+
 def sign_message(subseed: bytes, public_key: bytes, message: bytes) -> bytes:
     sign_message_C = qubic_verify_dll.sign_message
     sign_message_C.argtypes = [ctypes.c_char_p, ctypes.c_char_p,
-                       ctypes.c_char_p, ctypes.c_uint64, ctypes.c_char_p]
+                               ctypes.c_char_p, ctypes.c_uint64, ctypes.c_char_p]
 
     signature_buffer = create_string_buffer(64)
     sign_message_C(ctypes.c_char_p(subseed), ctypes.c_char_p(
@@ -138,10 +142,23 @@ def pretty_signatyre(signature: bytes) -> str:
 
     return signature_str
 
+
 c_nonce_type_array = ctypes.c_uint8 * 32 * 1000
-def get_score(nonces:c_nonce_type_array)->int:
+NUMBER_OF_SOLUTION_NONCES = 1000
+
+
+def get_score(nonces: c_nonce_type_array) -> int:
     get_score_C = qubic_verify_dll.get_score
     get_score_C.argtypes = [c_nonce_type_array, ctypes.c_uint16]
     get_score_C.restype = ctypes.c_uint32
 
-    return get_score_C(nonces, 1000)
+    return get_score_C(nonces, NUMBER_OF_SOLUTION_NONCES)
+
+
+def get_real_score(public_key: bytes, nonces: c_nonce_type_array):
+    get_real_score_C = qubic_verify_dll.get_real_score
+    get_real_score_C.argtypes = [ctypes.c_char_p,
+                                 c_nonce_type_array, ctypes.c_uint16]
+    get_real_score_C.restype = ctypes.c_uint32
+
+    return get_real_score_C(ctypes.c_char_p(public_key), nonces, NUMBER_OF_SOLUTION_NONCES)

@@ -1,11 +1,12 @@
 import asyncio
 import logging
+import os
 import zstandard
 from ctypes import sizeof
 from typing import Optional
 
 import numpy
-from algorithms.verify import get_score
+from algorithms.verify import get_score, get_real_score
 from custom_nats.custom_nats import Nats
 from custom_nats.handler import Handler, HandlerStarter
 from nats.aio.msg import Msg
@@ -96,7 +97,7 @@ class ItemContainer():
         import os.path
         if not os.path.exists(self._file_name):
             logging.info(
-                f'{self.__class__.__name__}.load_from_file: a file is not exist')
+                f'{self.__class__.__name__}.load_from_file: a {self._file_name} is not exist')
             return
 
         try:
@@ -104,8 +105,13 @@ class ItemContainer():
             import json
 
             async with aiofiles.open(self._file_name, 'r') as f:
-                lines = f.readlines()
-                self._epoch = json.loads(lines[0])
+                lines = await f.readlines()
+                try:
+                    self._epoch = json.loads(lines[0])['epoch']
+                except Exception as e:
+                    logging.exception(e)
+                    self._epoch = 0
+
                 self._data = json.loads(lines[1])
         except Exception as e:
             logging.exception(e)
@@ -136,12 +142,14 @@ class ItemContainer():
 
 class ScoresIC(ItemContainer):
     SCORE_KEY = 's'
+    REAL_SCORE_KEY = 'r'
     TIMESTAMP_KEY = 't'
 
     def __init__(self) -> None:
         super().__init__()
         self._data = dict()
-        self._file_name = 'scores.data'
+        self._file_name = os.path.join(
+            os.getenv('DATA_FILES_PATH', './'), 'scores.data')
 
     def __get_timestamp(self) -> int:
         from datetime import datetime
@@ -154,16 +162,23 @@ class ScoresIC(ItemContainer):
         try:
             identity = kwargs['identity']
             new_score = kwargs['score']
+            real_score = kwargs['real_score']
+            timestamp = self.__get_timestamp()
         except Exception as e:
             logging.exception(e)
             return False
 
-        timestamp = self.__get_timestamp()
-        found_score = self._data.setdefault(
-            identity, {ScoresIC.SCORE_KEY: new_score, ScoresIC.TIMESTAMP_KEY: timestamp})[ScoresIC.SCORE_KEY]
-        if found_score < new_score:
-            self._data[identity] = {
-                ScoresIC.SCORE_KEY: new_score, ScoresIC.TIMESTAMP_KEY: self.__get_timestamp()}
+        current_data = {
+            ScoresIC.SCORE_KEY: new_score,
+            ScoresIC.REAL_SCORE_KEY: real_score,
+            ScoresIC.TIMESTAMP_KEY: timestamp
+        }
+        found_data = self._data.setdefault(
+            identity, current_data)
+        found_score = found_data.get(ScoresIC.SCORE_KEY, 0)
+        found_real_score = found_data.get(ScoresIC.REAL_SCORE_KEY, 0)
+        if found_score < new_score or found_real_score < real_score:
+            self._data[identity] = current_data
             return True
 
         return False
@@ -179,7 +194,6 @@ class DataContainer():
     __SEND_INTERVAL_S = 10
     __ticks = dict()
     __scores_ic = ScoresIC()
-    __scores = dict()
     __btasks = BackgroundTasks()
     __computors: Optional[Computors] = None
 
@@ -195,13 +209,13 @@ class DataContainer():
             cls.__ticks[computor_index] = new_tick
 
     @classmethod
-    def add_scores(cls, identity, new_score: int):
+    def add_scores(cls, identity, new_score: int, real_score: int):
         epoch = cls.get_epoch()
         if epoch is None:
             logging.warning(f'{cls.__name__}.add_scores: epoch is None')
             return
 
-        if cls.__scores_ic.add_data(epoch=epoch, identity=identity, score=new_score):
+        if cls.__scores_ic.add_data(epoch=epoch, identity=identity, score=new_score, real_score=real_score):
             cls.__need_backup = True
 
     @classmethod
@@ -292,7 +306,7 @@ class DataContainer():
                                                    DataSubjects.TICKS, json.dumps(cls.__ticks).encode()))
 
             if not cls.__scores_ic.is_empty():
-                logging.info(f'Send scores:\n{cls.__scores_ic.dumps()}')
+                logging.info(f'Send scores')
                 tasks.add(cls.__btasks.create_task(
                     nc.publish, DataSubjects.SCORES, cls.__scores_ic.dumps().encode()))
 
@@ -368,11 +382,16 @@ class HandleBroadcastResourceTestingSolution(Handler):
             logging.exception(e)
             return
         resourceTestingSolution: ResourceTestingSolution = broadcastResourceTestingSolution.resourceTestingSolution
+        public_key = resourceTestingSolution.computorPublicKey
         identity = get_identity(
-            bytes(resourceTestingSolution.computorPublicKey))
-        new_score = get_score(resourceTestingSolution.nonces)
+            bytes(public_key))
+        nonces = resourceTestingSolution.nonces
+        new_score = get_score(nonces)
+        real_score = get_real_score(public_key=bytes(public_key), nonces=nonces)
+        logging.info(f'{new_score}/{real_score}')
 
-        DataContainer.add_scores(identity=identity, new_score=new_score)
+        DataContainer.add_scores(
+            identity=identity, new_score=new_score, real_score=real_score)
 
 
 class HandlerRevenues(Handler):
